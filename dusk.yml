@@ -1,0 +1,8 @@
+
+
+server:
+    default: true
+    host: a.com
+    root: ./
+
+
