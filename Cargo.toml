@@ -5,3 +5,4 @@ authors = ["wyhaya <wyhaya@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+percent-encoding = "1.0.1"

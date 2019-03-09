@@ -11,6 +11,8 @@ mod response;
 use response::{StatusCode, Response};
 mod html;
 use html::template;
+extern crate percent_encoding;
+use percent_encoding::percent_decode;
 
 
 fn main() {
@@ -56,7 +58,13 @@ fn get_path(request: String) -> String {
     let structure: Vec<&str> = request.split("\r\n").collect();
     let route: Vec<&str> = structure[0].split(" ").collect();
 
-    route[1].replacen("/", "./", 1)
+    let url = route[1];
+    let path = &url.replacen("/", "./", 1);
+
+    percent_decode(path.as_bytes())
+        .decode_utf8()
+        .unwrap()
+        .to_string()
 
 }
 
@@ -68,8 +76,7 @@ fn output(route: String) -> Vec<u8> {
     match meta {
         Ok(meta) => {
             if meta.is_dir() {
-                let last = &route.chars().last().unwrap().to_string();
-                if *last == String::from("/") {
+                if get_last_string(&route) == String::from("/") {
                     return Response::new(StatusCode::Ok)
                         .content_type("html")
                         .body(response_dir_html(&route).as_bytes())
@@ -77,20 +84,19 @@ fn output(route: String) -> Vec<u8> {
                     let moved = route.replace(".", "") + "/";
                     return Response::new(StatusCode::Moved)
                         .header("location", &moved)
-                        .body(String::from("").as_bytes())
+                        .body(b"")
                 }
             }else {
                 match fs::read(&route) {
                     Ok(data) => {
-                        let ext = Path::new(&route).extension().unwrap().to_str().unwrap();
                         return Response::new(StatusCode::Ok)
-                            .content_type(ext)
-                            .body( &data[..])
+                            .content_type(get_ext(&route))
+                            .body(&data[..])
                     },
                     Err(_) => {
                         return Response::new(StatusCode::Error)
                             .content_type("txt")
-                            .body(String::from("500").as_bytes())
+                            .body(b"500")
                     }
                 }
             }
@@ -98,9 +104,37 @@ fn output(route: String) -> Vec<u8> {
         Err(_) => {
             return Response::new(StatusCode::NotFound)
                 .content_type("txt")
-                .body(String::from("404").as_bytes());
+                .body(b"404");
         }
     };
+
+}
+
+
+fn get_ext(route: &String) -> &str {
+
+    let extension = Path::new(route)
+        .extension();
+
+    match extension {
+        Some(ext) => {
+            match ext.to_str() {
+                Some(e) => e,
+                None => ""
+            }
+        },
+        None => ""
+    }
+
+}
+
+
+fn get_last_string(route: &String) -> String {
+
+    match route.chars().last() {
+        Some(l) => l.to_string(),
+        None => String::from("")
+    }
 
 }
 

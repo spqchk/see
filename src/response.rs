@@ -123,9 +123,11 @@ impl Response {
 
     pub fn body(self, data: &[u8]) -> Vec<u8> {
 
+        let res = self.header("Content-Length", &data.len().to_string());
+
         let mut top = String::from("");
-        top.push_str(&self.line);
-        top.push_str(&self.header);
+        top.push_str(&res.line);
+        top.push_str(&res.header);
         top.push_str("\r\n");
 
         [&top.as_bytes()[..], &data[..]].concat()

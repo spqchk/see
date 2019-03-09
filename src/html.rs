@@ -11,7 +11,7 @@ pub fn template() -> &'static str {
     <style>
         body {
             font-family: microsoft yahei, "Helvetica Neue", "pingfang sc";
-            padding: 0 100px 0;
+            padding: 0 24px 0;
         }
         h1 {
             font-weight: normal;
@@ -28,12 +28,13 @@ pub fn template() -> &'static str {
 <body>
     <h1>Index of {title}</h1>
     <ul>
-        <li><a href="../">../</a></li>
+        <li>
+            <a href="../">../</a>
+        </li>
         {list}
     </ul>
 </body>
-</html>
-    "#;
+</html>"#;
 
 }
 
