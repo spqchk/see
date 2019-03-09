@@ -6,27 +6,27 @@ pub struct Response {
     header: String
 }
 
-pub enum Status {
-    Success,
-    Not,
+pub enum StatusCode {
+    Ok,
+    NotFound,
     Error,
     Moved
 }
 
 impl Response {
 
-    pub fn new(status: Status) -> Response {
+    pub fn new(status: StatusCode) -> Response {
 
         let mut response = Response::default();
 
         response.line = match status {
-            Status::Success => String::from("HTTP/1.1 200 OK\r\n"),
-            Status::Not => String::from("HTTP/1.1 404 Not Found\r\n"),
-            Status::Error => String::from("HTTP/1.1 500\r\n"),
-            Status::Moved => String::from("HTTP/1.1 301\r\n")
+            StatusCode::Ok => String::from("HTTP/1.1 200 OK\r\n"),
+            StatusCode::NotFound => String::from("HTTP/1.1 404\r\n"),
+            StatusCode::Error => String::from("HTTP/1.1 500\r\n"),
+            StatusCode::Moved => String::from("HTTP/1.1 301\r\n")
         };
 
-        response.header += "Server: sfs\r\n";
+        response.header += "Server: dusk\r\n";
         response
 
     }
@@ -121,16 +121,17 @@ impl Response {
 
     }
 
-    pub fn body(self, content: String) -> String {
+    pub fn body(self, data: &[u8]) -> Vec<u8> {
 
-        let mut d = String::from("");
-        d.push_str(&self.line);
-        d.push_str(&self.header);
-        d.push_str("\r\n");
-        d.push_str(&content);
-        d
+        let mut top = String::from("");
+        top.push_str(&self.line);
+        top.push_str(&self.header);
+        top.push_str("\r\n");
+
+        [&top.as_bytes()[..], &data[..]].concat()
 
     }
+
 
 }
 

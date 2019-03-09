@@ -1,8 +1,10 @@
 
 
 server:
-    default: true
-    host: a.com
-    root: ./
-
+  default: true
+  host: a.com
+  root: ./
+  log:
+    error: ./error.log
+    success: ./success.log
 
