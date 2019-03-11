@@ -1,10 +1,20 @@
 
 
-server:
-  default: true
-  host: a.com
-  root: ./
-  log:
-    error: ./error.log
-    success: ./success.log
+- server:
+    default: true
+    host: a.com
+    listen: 80
+    root: ./
+    log:
+      error: ./a.error.log
+      success: ./a.success.log
+
+- server:
+    default: false
+    host: b.com
+    listen: 1234
+    root: ./
+    log:
+      error: ./b.error.log
+      success: ./b.success.log
 

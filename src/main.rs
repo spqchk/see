@@ -11,11 +11,22 @@ mod response;
 use response::{StatusCode, Response};
 mod html;
 use html::template;
+mod config;
+use config::ServerConfig;
 extern crate percent_encoding;
 use percent_encoding::percent_decode;
 
 
 fn main() {
+
+    match ServerConfig::new("dusk.yml") {
+        Ok(config) => {
+            dbg!(config);
+        },
+        Err(_) => {
+            println!("config error");
+        }
+    }
 
     const ADDRESS: &str = "0.0.0.0:80";
 
