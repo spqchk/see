@@ -8,39 +8,32 @@ use std::result::Result;
 
 #[derive(Debug)]
 pub struct ServerConfig {
-    default: bool,
-    host: String,
-    listen: i64,
-    root: String,
-    log: Log
+    pub default: bool,
+    pub host: String,
+    pub listen: i64,
+    pub root: String,
+    pub log: Log
 }
 
 
 #[derive(Debug)]
-struct Log {
-    success: String,
-    error: String
+pub struct Log {
+    pub success: String,
+    pub error: String
 }
 
 
 impl ServerConfig {
 
-    pub fn new(path: &str) -> Result<Vec<ServerConfig>, String>  {
+    pub fn new(path: &str) -> Result<Vec<Vec<ServerConfig>>, String>  {
 
         let str = fs::read_to_string(path).unwrap();
 
         let docs = YamlLoader::load_from_str(&str).unwrap();
 
-        let mut configs: Vec<ServerConfig> = vec![];
+        let mut configs: Vec<Vec<ServerConfig>> = vec![];
 
         let servers = &docs[0].as_vec().unwrap();
-
-//        let s = match &docs[0].as_vec() {
-//            Some(d) => *d,
-//            None => {
-//
-//            }
-//        };
 
         for x in servers.iter() {
 
@@ -76,7 +69,7 @@ impl ServerConfig {
                 None => ""
             }.to_string();
 
-            configs.push(ServerConfig {
+            let config = ServerConfig {
                 default,
                 host,
                 listen,
@@ -85,7 +78,22 @@ impl ServerConfig {
                     success,
                     error
                 }
-            });
+            };
+
+            let mut has = false;
+            let mut n = 0;
+            for (i, items) in configs.iter().enumerate() {
+                if items[0].listen == listen {
+                    has = true;
+                    n = i;
+                    break;
+                }
+            }
+            if has {
+                configs[n].push(config);
+            }else {
+                configs.push(vec![config]);
+            }
 
         }
 

@@ -19,26 +19,46 @@ use percent_encoding::percent_decode;
 
 fn main() {
 
-    match ServerConfig::new("dusk.yml") {
-        Ok(config) => {
-            dbg!(config);
-        },
-        Err(_) => {
-            println!("config error");
+    let configs = match ServerConfig::new("dusk.yml") {
+        Ok(config) => config,
+        Err(msg) => {
+            println!("{}", msg);
+            return;
         }
+    };
+
+    let mut wait = vec![];
+    for config in configs {
+        wait.push(thread::spawn(|| {
+            bind_tcp(config);
+        }));
     }
 
-    const ADDRESS: &str = "0.0.0.0:80";
+    for sp in wait {
+        sp.join().unwrap();
+    }
 
-    let listener = TcpListener::bind(ADDRESS);
+}
+
+
+fn bind_tcp(config: Vec<ServerConfig>) {
+
+    let listen = &config[0].listen;
+    let address = format!("0.0.0.0:{}", listen);
+    let listener = TcpListener::bind(&address);
 
     if let Err(listener) = listener {
         println!("{:?}", listener);
-        println!("Binding {} failed.", ADDRESS);
+        println!("Binding {} failed.", &address);
         process::exit(1);
+    }else {
+        println!("Binding {} success.", &address);
     }
 
     let server = listener.unwrap();
+
+    //    server.set_nonblocking(true)
+
     for stream in server.incoming() {
         if let Ok(stream) = stream {
             thread::spawn(|| {
@@ -56,7 +76,7 @@ fn handle_connection(mut stream: TcpStream) {
     stream.read(&mut buffer).unwrap();
 
     let request = String::from_utf8_lossy(&buffer[..]).to_string();
-    let res = output(get_path(request));
+    let res = output(parse_connection(request).path);
 
     stream.write(&res).unwrap();
     stream.flush().unwrap();
@@ -64,18 +84,28 @@ fn handle_connection(mut stream: TcpStream) {
 }
 
 
-fn get_path(request: String) -> String {
+#[derive(Debug)]
+struct Request {
+    path: String,
+    host: String
+}
+
+fn parse_connection(request: String) -> Request {
 
     let structure: Vec<&str> = request.split("\r\n").collect();
-    let route: Vec<&str> = structure[0].split(" ").collect();
+    let url: Vec<&str> = structure[0].split(" ").collect();
+    let host: Vec<&str> = structure[1].split(" ").collect();
 
-    let url = route[1];
-    let path = &url.replacen("/", "./", 1);
-
-    percent_decode(path.as_bytes())
+    let mut path = url[1].replacen("/", "./", 1);
+    path = percent_decode(path.as_bytes())
         .decode_utf8()
         .unwrap()
-        .to_string()
+        .to_string();
+
+    Request {
+        path,
+        host: String::from(host[1])
+    }
 
 }
 
@@ -92,7 +122,7 @@ fn output(route: String) -> Vec<u8> {
                         .content_type("html")
                         .body(response_dir_html(&route).as_bytes())
                 }else {
-                    let moved = route.replace(".", "") + "/";
+                    let moved = route.replacen(".", "", 1) + "/";
                     return Response::new(StatusCode::Moved)
                         .header("location", &moved)
                         .body(b"")

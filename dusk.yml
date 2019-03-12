@@ -2,16 +2,19 @@
 
 - server:
     default: true
-    host: a.com
+    host: 127.0.0.1
     listen: 80
     root: ./
+    gzip: true
+    autoindex: true
+    index: index.html
     log:
       error: ./a.error.log
       success: ./a.success.log
 
 - server:
     default: false
-    host: b.com
+    host: 172.17.10.13
     listen: 1234
     root: ./
     log:
