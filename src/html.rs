@@ -21,7 +21,9 @@ pub fn template() -> &'static str {
         }
         li {
             list-style-type: none;
-            line-height: 26px;
+            line-height: 20px;
+            word-wrap: break-word;
+            margin-top: 6px;
         }
     </style>
 </head>

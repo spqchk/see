@@ -6,7 +6,7 @@
     listen: 80
     root: ./
     gzip: true
-    autoindex: true
+    directory: true
     index: index.html
     log:
       error: ./a.error.log

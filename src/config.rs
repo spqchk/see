@@ -12,6 +12,9 @@ pub struct ServerConfig {
     pub host: String,
     pub listen: i64,
     pub root: String,
+    pub gzip: bool,
+    pub directory: bool,
+    pub index: String,
     pub log: Log
 }
 
@@ -59,6 +62,21 @@ impl ServerConfig {
                 None => ""
             }.to_string();
 
+            let gzip = match &server["gzip"].as_bool() {
+                Some(d) => *d,
+                None => false
+            };
+
+            let directory = match &server["directory"].as_bool() {
+                Some(d) => *d,
+                None => false
+            };
+
+            let index = match &server["index"].as_str() {
+                Some(d) => *d,
+                None => "index.html"
+            }.to_string();
+
             let success = match &server["log"]["success"].as_str() {
                 Some(d) => *d,
                 None => ""
@@ -74,6 +92,9 @@ impl ServerConfig {
                 host,
                 listen,
                 root,
+                gzip,
+                directory,
+                index,
                 log: Log {
                     success,
                     error

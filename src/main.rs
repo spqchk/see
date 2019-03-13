@@ -1,5 +1,6 @@
 
 
+use std::u8;
 use std::fs;
 use std::thread;
 use std::io::prelude::*;
@@ -75,11 +76,14 @@ fn handle_connection(mut stream: TcpStream) {
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
 
-    let request = String::from_utf8_lossy(&buffer[..]).to_string();
-    let res = output(parse_connection(request).path);
-
-    stream.write(&res).unwrap();
-    stream.flush().unwrap();
+    if u8::min_value() == buffer[0] {
+        stream.flush().unwrap();
+    }else {
+        let request = String::from_utf8_lossy(&buffer[..]).to_string();
+        let res = output(parse_connection(request).path);
+        stream.write(&res).unwrap();
+        stream.flush().unwrap();
+    }
 
 }
 
@@ -182,12 +186,34 @@ fn get_last_string(route: &String) -> String {
 
 fn response_dir_html(path: &String) -> String {
 
-    let dir = fs::read_dir(path).unwrap();
+    let dir = match fs::read_dir(path) {
+        Ok(dir) => dir,
+        Err(_) => {
+            return String::from("")
+        }
+    };
+
     let mut files = String::from("");
+
     for x in dir {
-        let entry = x.unwrap().path();
-        let filename = entry.file_name().unwrap().to_str().unwrap();
+
+        let entry = match x {
+            Ok(entry) => entry,
+            Err(_) => continue
+        }.path();
+
+        let filename = match entry.file_name() {
+            Some(d) => {
+                match d.to_str() {
+                    Some(n) => n,
+                    None => continue
+                }
+            },
+            None => continue
+        };
+
         files += &format!(r#"<li><a href="{}">{}</a></li>"#, filename, filename);
+
     }
 
     template()
