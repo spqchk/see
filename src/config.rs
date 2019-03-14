@@ -6,9 +6,8 @@ use std::fs;
 use std::result::Result;
 
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ServerConfig {
-    pub default: bool,
     pub host: String,
     pub listen: i64,
     pub root: String,
@@ -19,7 +18,7 @@ pub struct ServerConfig {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Log {
     pub success: String,
     pub error: String
@@ -41,11 +40,6 @@ impl ServerConfig {
         for x in servers.iter() {
 
             let server = &x["server"];
-
-            let default = match &server["default"].as_bool() {
-                Some(d) => *d,
-                None => false
-            };
 
             let host = match &server["host"].as_str() {
                 Some(d) => *d,
@@ -88,7 +82,6 @@ impl ServerConfig {
             }.to_string();
 
             let config = ServerConfig {
-                default,
                 host,
                 listen,
                 root,

@@ -62,28 +62,52 @@ fn bind_tcp(config: Vec<ServerConfig>) {
 
     for stream in server.incoming() {
         if let Ok(stream) = stream {
-            thread::spawn(|| {
-                handle_connection(stream);
-            });
+//            thread::spawn(|| {
+//                handle_connection(stream);
+//            });
+            handle_connection(stream, &config);
         }
     }
 
 }
 
 
-fn handle_connection(mut stream: TcpStream) {
+fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
 
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
 
     if u8::min_value() == buffer[0] {
         stream.flush().unwrap();
-    }else {
-        let request = String::from_utf8_lossy(&buffer[..]).to_string();
-        let res = output(parse_connection(request).path);
-        stream.write(&res).unwrap();
-        stream.flush().unwrap();
+        return;
     }
+
+    let request = String::from_utf8_lossy(&buffer[..]).to_string();
+    let req = parse_connection(request);
+    let mut res: Vec<u8> = vec![];
+
+    for conf in config {
+        // !!!
+        let host = &req.host.replace(":1234", "");
+        if &conf.host == host {
+            res = output(&req.path, &conf);
+            break;
+        }
+    }
+
+    if res.len() == 0 {
+        for conf in config {
+            if conf.host == String::from("") {
+                res = output(&req.path, &conf);
+                break;
+            }
+        }
+    }
+
+    if res.len() != 0 {
+        stream.write(&res).unwrap();
+    }
+    stream.flush().unwrap();
 
 }
 
@@ -114,17 +138,37 @@ fn parse_connection(request: String) -> Request {
 }
 
 
-fn output(route: String) -> Vec<u8> {
+fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
 
-    let meta = fs::metadata(&route);
+    let path_buff = Path::new(&config.root)
+        .join(&route);
 
-    match meta {
+    let canonicalize = path_buff.canonicalize();
+    let d = match canonicalize {
+        Ok(p) => p,
+        Err(_) => {
+            return Response::new(StatusCode::NotFound)
+                .content_type("txt")
+                .body(b"404");
+        }
+    };
+
+    let path = match d.to_str() {
+        Some(s) => s,
+        None => {
+            return Response::new(StatusCode::NotFound)
+                .content_type("txt")
+                .body(b"404");
+        }
+    };
+
+    match d.metadata() {
         Ok(meta) => {
             if meta.is_dir() {
                 if get_last_string(&route) == String::from("/") {
                     return Response::new(StatusCode::Ok)
                         .content_type("html")
-                        .body(response_dir_html(&route).as_bytes())
+                        .body(response_dir_html(&path, &route).as_bytes())
                 }else {
                     let moved = route.replacen(".", "", 1) + "/";
                     return Response::new(StatusCode::Moved)
@@ -132,10 +176,10 @@ fn output(route: String) -> Vec<u8> {
                         .body(b"")
                 }
             }else {
-                match fs::read(&route) {
+                match fs::read(&path) {
                     Ok(data) => {
                         return Response::new(StatusCode::Ok)
-                            .content_type(get_ext(&route))
+                            .content_type(get_ext(&path))
                             .body(&data[..])
                     },
                     Err(_) => {
@@ -156,7 +200,7 @@ fn output(route: String) -> Vec<u8> {
 }
 
 
-fn get_ext(route: &String) -> &str {
+fn get_ext(route: &str) -> &str {
 
     let extension = Path::new(route)
         .extension();
@@ -184,7 +228,7 @@ fn get_last_string(route: &String) -> String {
 }
 
 
-fn response_dir_html(path: &String) -> String {
+fn response_dir_html(path: &str, title: &String) -> String {
 
     let dir = match fs::read_dir(path) {
         Ok(dir) => dir,
@@ -217,7 +261,7 @@ fn response_dir_html(path: &String) -> String {
     }
 
     template()
-        .replace("{title}", path)
+        .replace("{title}", title)
         .replace("{list}", &files)
 
 }
