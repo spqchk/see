@@ -68,7 +68,7 @@ impl ServerConfig {
 
             let index = match &server["index"].as_str() {
                 Some(d) => *d,
-                None => "index.html"
+                None => ""
             }.to_string();
 
             let success = match &server["log"]["success"].as_str() {

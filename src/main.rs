@@ -2,6 +2,7 @@
 
 use std::u8;
 use std::fs;
+use std::env;
 use std::thread;
 use std::io::prelude::*;
 use std::net::TcpStream;
@@ -20,11 +21,36 @@ use percent_encoding::percent_decode;
 
 fn main() {
 
-    let configs = match ServerConfig::new("dusk.yml") {
+    let mut config_path = match get_arg(String::from("-c")) {
+        Some(p) => p,
+        None => String::from("./dusk.yml")
+    };
+
+    if !Path::new(&config_path).is_absolute() {
+        let cwd = env::current_dir()
+            .unwrap();
+        let full_path = cwd
+            .join(&config_path);
+        match full_path.canonicalize() {
+            Ok(buf) => {
+                let str = buf
+                    .to_str()
+                    .unwrap();
+                config_path = str
+                    .to_string();
+            },
+            Err(err) => {
+                println!("Failed to read configuration file: {}", err.to_string());
+                process::exit(1);
+            }
+        }
+    }
+
+    let configs = match ServerConfig::new(config_path.as_str()) {
         Ok(config) => config,
         Err(msg) => {
             println!("{}", msg);
-            return;
+            process::exit(1);
         }
     };
 
@@ -37,6 +63,27 @@ fn main() {
 
     for sp in wait {
         sp.join().unwrap();
+    }
+
+}
+
+
+fn get_arg(name: String) -> Option<String> {
+
+    let args: Vec<String> = env::args().collect();
+    let c = &args[1..];
+    let mut arg = "";
+
+    for (i, x) in c.iter().enumerate() {
+        if x == &name && c.len() - 1 > i {
+            arg = c[i + 1].as_str();
+            break;
+        }
+    }
+
+    match arg {
+        "" => None,
+        _ => Some(arg.to_string())
     }
 
 }
@@ -87,8 +134,8 @@ fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
     let mut res: Vec<u8> = vec![];
 
     for conf in config {
-        // !!!
-        let host = &req.host.replace(":1234", "");
+        let rm_listen = format!(":{}", &conf.listen);
+        let host = &req.host.replace(rm_listen.as_str(), "");
         if &conf.host == host {
             res = output(&req.path, &conf);
             break;
@@ -156,9 +203,9 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
     let path = match d.to_str() {
         Some(s) => s,
         None => {
-            return Response::new(StatusCode::NotFound)
+            return Response::new(StatusCode::Error)
                 .content_type("txt")
-                .body(b"404");
+                .body(b"500");
         }
     };
 
@@ -166,9 +213,29 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
         Ok(meta) => {
             if meta.is_dir() {
                 if get_last_string(&route) == String::from("/") {
-                    return Response::new(StatusCode::Ok)
-                        .content_type("html")
-                        .body(response_dir_html(&path, &route).as_bytes())
+                    if &config.index != "" {
+                        let index_path = format!("{}/{}", &path, &config.index);
+                        match fs::read(index_path) {
+                            Ok(data) => {
+                                return Response::new(StatusCode::Ok)
+                                    .content_type(get_ext(&config.index))
+                                    .body(&data[..])
+                            },
+                            Err(_) => {
+                                return Response::new(StatusCode::NotFound)
+                                    .content_type("txt")
+                                    .body(b"404");
+                            }
+                        }
+                    }
+                    if config.directory {
+                        return Response::new(StatusCode::Ok)
+                            .content_type("html")
+                            .body(response_dir_html(&path, &route).as_bytes())
+                    }
+                    return Response::new(StatusCode::NotFound)
+                        .content_type("txt")
+                        .body(b"404");
                 }else {
                     let moved = route.replacen(".", "", 1) + "/";
                     return Response::new(StatusCode::Moved)
