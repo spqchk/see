@@ -21,12 +21,12 @@ Complete configuration file example:
     gzip: true         # Whether to open Gzip
     index: index.html  # Index file
     directory: true    # Whether to display the file list
-    extension:         # Sets file extension fallbacks
-      - html
-      - htm
-    header:            # Header in response
+    headers:            # Header in response
       - Set-Cookie 12345
       - auth 12345
+    extensions:         # Sets file extension fallbacks
+      - html
+      - htm
     log:               # Log save location
       error: /logs/domain.error.log
       success: /logs/domain.success.log
@@ -35,7 +35,7 @@ Complete configuration file example:
 
 ## Todo
 
-* [ ] Custom header
+* [x] Custom header
 * [ ] extension
 * [ ] Log
 * [ ] Gzip

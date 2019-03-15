@@ -196,6 +196,7 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
         Err(_) => {
             return Response::new(StatusCode::NotFound)
                 .content_type("txt")
+                .headers(&config.headers)
                 .body(b"404");
         }
     };
@@ -205,6 +206,7 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
         None => {
             return Response::new(StatusCode::Error)
                 .content_type("txt")
+                .headers(&config.headers)
                 .body(b"500");
         }
     };
@@ -219,11 +221,13 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
                             Ok(data) => {
                                 return Response::new(StatusCode::Ok)
                                     .content_type(get_ext(&config.index))
+                                    .headers(&config.headers)
                                     .body(&data[..])
                             },
                             Err(_) => {
                                 return Response::new(StatusCode::NotFound)
                                     .content_type("txt")
+                                    .headers(&config.headers)
                                     .body(b"404");
                             }
                         }
@@ -231,15 +235,18 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
                     if config.directory {
                         return Response::new(StatusCode::Ok)
                             .content_type("html")
+                            .headers(&config.headers)
                             .body(response_dir_html(&path, &route).as_bytes())
                     }
                     return Response::new(StatusCode::NotFound)
                         .content_type("txt")
+                        .headers(&config.headers)
                         .body(b"404");
                 }else {
                     let moved = route.replacen(".", "", 1) + "/";
                     return Response::new(StatusCode::Moved)
                         .header("location", &moved)
+                        .headers(&config.headers)
                         .body(b"")
                 }
             }else {
@@ -247,11 +254,13 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
                     Ok(data) => {
                         return Response::new(StatusCode::Ok)
                             .content_type(get_ext(&path))
+                            .headers(&config.headers)
                             .body(&data[..])
                     },
                     Err(_) => {
                         return Response::new(StatusCode::Error)
                             .content_type("txt")
+                            .headers(&config.headers)
                             .body(b"500")
                     }
                 }
@@ -260,6 +269,7 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
         Err(_) => {
             return Response::new(StatusCode::NotFound)
                 .content_type("txt")
+                .headers(&config.headers)
                 .body(b"404");
         }
     };

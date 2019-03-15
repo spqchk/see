@@ -44,6 +44,22 @@ impl Response {
 
     }
 
+    pub fn headers(mut self, headers: &Vec<Vec<String>>) -> Response {
+
+        for header in headers {
+            self.header += header[0].as_str();
+            self.header += ": ";
+            self.header += header[1].as_str();
+            self.header += "\r\n";
+        }
+
+        Response {
+            ..self
+        }
+
+    }
+
+
     pub fn content_type(self, ext: &str) -> Response {
 
         let value = match &ext.as_ref() {

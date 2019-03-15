@@ -14,6 +14,7 @@ pub struct ServerConfig {
     pub gzip: bool,
     pub directory: bool,
     pub index: String,
+    pub headers: Vec<Vec<String>>,
     pub log: Log
 }
 
@@ -71,6 +72,19 @@ impl ServerConfig {
                 None => ""
             }.to_string();
 
+            let headers = match &server["headers"].as_vec() {
+                Some(header) => {
+                    let mut vec: Vec<Vec<String>> = vec![];
+                    for x in header.iter() {
+                        let a = &x.as_str().unwrap();
+                        let v: Vec<&str> = a.split(" ").collect();
+                        vec.push(vec![v[0].to_string(), v[1].to_string()]);
+                    }
+                    vec
+                },
+                None => vec![]
+            };
+
             let success = match &server["log"]["success"].as_str() {
                 Some(d) => *d,
                 None => ""
@@ -88,6 +102,7 @@ impl ServerConfig {
                 gzip,
                 directory,
                 index,
+                headers,
                 log: Log {
                     success,
                     error
