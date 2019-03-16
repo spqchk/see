@@ -189,29 +189,11 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
 
     let path_buff = Path::new(&config.root)
         .join(&route);
+    let path = path_buff
+        .to_str()
+        .unwrap();
 
-    let canonicalize = path_buff.canonicalize();
-    let d = match canonicalize {
-        Ok(p) => p,
-        Err(_) => {
-            return Response::new(StatusCode::NotFound)
-                .content_type("txt")
-                .headers(&config.headers)
-                .body(b"404");
-        }
-    };
-
-    let path = match d.to_str() {
-        Some(s) => s,
-        None => {
-            return Response::new(StatusCode::Error)
-                .content_type("txt")
-                .headers(&config.headers)
-                .body(b"500");
-        }
-    };
-
-    match d.metadata() {
+    match fs::metadata(&path) {
         Ok(meta) => {
             if meta.is_dir() {
                 if get_last_string(&route) == String::from("/") {
@@ -267,10 +249,20 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
             }
         },
         Err(_) => {
-            return Response::new(StatusCode::NotFound)
-                .content_type("txt")
-                .headers(&config.headers)
-                .body(b"404");
+            match fallbacks(&path, &config.extensions) {
+                Ok(fallback) => {
+                    return Response::new(StatusCode::Ok)
+                        .content_type(get_ext(&fallback.1))
+                        .headers(&config.headers)
+                        .body(&fallback.0[..]);
+                },
+                Err(_) => {
+                    return Response::new(StatusCode::NotFound)
+                        .content_type("txt")
+                        .headers(&config.headers)
+                        .body(b"404");
+                }
+            }
         }
     };
 
@@ -302,6 +294,25 @@ fn get_last_string(route: &String) -> String {
         None => String::from("")
     }
 
+}
+
+
+struct Fallbacks (
+    Vec<u8>,
+    String
+);
+
+fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
+    for x in exts {
+        let path = format!("{}.{}", file, x);
+        match fs::read(&path) {
+            Ok(data) => {
+                return Ok(Fallbacks(data, path));
+            },
+            Err(_) => {}
+        }
+    }
+    return Err(());
 }
 
 

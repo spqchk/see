@@ -15,6 +15,7 @@ pub struct ServerConfig {
     pub directory: bool,
     pub index: String,
     pub headers: Vec<Vec<String>>,
+    pub extensions: Vec<String>,
     pub log: Log
 }
 
@@ -76,9 +77,21 @@ impl ServerConfig {
                 Some(header) => {
                     let mut vec: Vec<Vec<String>> = vec![];
                     for x in header.iter() {
-                        let a = &x.as_str().unwrap();
+                        let a = x.as_str().unwrap();
                         let v: Vec<&str> = a.split(" ").collect();
                         vec.push(vec![v[0].to_string(), v[1].to_string()]);
+                    }
+                    vec
+                },
+                None => vec![]
+            };
+
+            let extensions = match &server["extensions"].as_vec() {
+                Some(exts) => {
+                    let mut vec: Vec<String> = vec![];
+                    for x in exts.iter() {
+                        let e = x.as_str().unwrap();
+                        vec.push(e.to_string());
                     }
                     vec
                 },
@@ -103,6 +116,7 @@ impl ServerConfig {
                 directory,
                 index,
                 headers,
+                extensions,
                 log: Log {
                     success,
                     error
