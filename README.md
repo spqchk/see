@@ -36,7 +36,7 @@ Complete configuration file example:
 ## Todo
 
 * [x] Custom header
-* [ ] extension
+* [x] extension
 * [ ] Log
 * [ ] Gzip
 * [ ] Proxy

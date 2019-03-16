@@ -303,6 +303,16 @@ struct Fallbacks (
 );
 
 fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
+
+    let has_ext = Path::new(&file)
+        .extension();
+    match has_ext {
+        Some(_) => {
+            return Err(());
+        },
+        None => { }
+    }
+
     for x in exts {
         let path = format!("{}.{}", file, x);
         match fs::read(&path) {
@@ -312,7 +322,9 @@ fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
             Err(_) => {}
         }
     }
+
     return Err(());
+
 }
 
 
