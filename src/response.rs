@@ -7,10 +7,11 @@ pub struct Response {
 }
 
 pub enum StatusCode {
-    Ok,
-    NotFound,
-    Error,
-    Moved
+    _200,
+    _301,
+    _400,
+    _404,
+    _500
 }
 
 impl Response {
@@ -20,10 +21,11 @@ impl Response {
         let mut response = Response::default();
 
         response.line = match status {
-            StatusCode::Ok => String::from("HTTP/1.1 200 OK\r\n"),
-            StatusCode::NotFound => String::from("HTTP/1.1 404\r\n"),
-            StatusCode::Error => String::from("HTTP/1.1 500\r\n"),
-            StatusCode::Moved => String::from("HTTP/1.1 301\r\n")
+            StatusCode::_200 => String::from("HTTP/1.1 200 OK\r\n"),
+            StatusCode::_400 => String::from("HTTP/1.1 400\r\n"),
+            StatusCode::_301 => String::from("HTTP/1.1 301\r\n"),
+            StatusCode::_404 => String::from("HTTP/1.1 404\r\n"),
+            StatusCode::_500 => String::from("HTTP/1.1 500\r\n")
         };
 
         response.header += "Server: sws\r\n";

@@ -1,5 +1,6 @@
 
 
+// HTML directory template
 pub fn template() -> &'static str {
 
     return r#"<!DOCTYPE html>
@@ -33,7 +34,7 @@ pub fn template() -> &'static str {
         <li>
             <a href="../">../</a>
         </li>
-        {list}
+        {files}
     </ul>
 </body>
 </html>"#;

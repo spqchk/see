@@ -35,18 +35,38 @@ pub struct Log {
 }
 
 
-
 impl ServerConfig {
 
-    pub fn new(path: &str) -> Result<Vec<Vec<ServerConfig>>, String>  {
+    pub fn new(path: String) -> Result<Vec<Vec<ServerConfig>>, String>  {
 
-        let str = fs::read_to_string(path).unwrap();
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(err) => {
+                return Err(err.to_string());
+            }
+        };
 
-        let docs = YamlLoader::load_from_str(&str).unwrap();
+        let docs = match YamlLoader::load_from_str(&content) {
+            Ok(yaml) => {
+                if yaml.len() == 0 {
+                    return Err(String::from("Server should be a list"));
+                }
+                yaml
+            },
+            Err(err) => {
+                return Err(err.to_string());
+            }
+        };
 
         let mut configs: Vec<Vec<ServerConfig>> = vec![];
 
-        let servers = &docs[0].as_vec().unwrap();
+        let vec = &docs[0].as_vec();
+        let servers = match vec {
+            Some(servers) => servers,
+            None => {
+                return Err(String::from("Server should be a list"));
+            }
+        };
 
         for x in servers.iter() {
 
@@ -59,12 +79,16 @@ impl ServerConfig {
 
             let listen = match &server["listen"].as_i64() {
                 Some(d) => *d,
-                None => 0
+                None => {
+                    return Err(String::from("Must bind port"));
+                }
             };
 
             let root = match &server["root"].as_str() {
                 Some(d) => *d,
-                None => ""
+                None => {
+                    return Err(String::from("Must set root"));
+                }
             }.to_string();
 
             let gzip = match &server["gzip"].as_bool() {

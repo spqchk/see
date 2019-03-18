@@ -40,7 +40,7 @@ Complete configuration file example:
 
 * [x] Custom header
 * [x] Extensions
-* [ ] Parse request
+* [ ] Parse request `50%`
 * [x] Custom error
 * [ ] Async
 * [ ] Log

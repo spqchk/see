@@ -9,15 +9,14 @@ use std::net::TcpStream;
 use std::net::TcpListener;
 use std::process;
 use std::path::Path;
-use std::path::PathBuf;
 mod response;
 use response::{StatusCode, Response};
+mod request;
+use request::Request;
 mod html;
 use html::template;
 mod config;
 use config::ServerConfig;
-extern crate percent_encoding;
-use percent_encoding::percent_decode;
 
 
 fn main() {
@@ -35,10 +34,10 @@ fn main() {
 
     config_path = fill_path(root, &config_path);
 
-    let configs = match ServerConfig::new(config_path.as_str()) {
+    let configs = match ServerConfig::new(config_path) {
         Ok(config) => config,
         Err(msg) => {
-            println!("{}", msg);
+            println!("\x1b[31msws: {}\x1b[0m", msg);
             process::exit(1);
         }
     };
@@ -118,23 +117,26 @@ fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
         return;
     }
 
-    let request = String::from_utf8_lossy(&buffer[..]).to_string();
-    let req = parse_connection(request);
     let mut res: Vec<u8> = vec![];
+    let req = Request::new(&buffer[..]);
 
-    for conf in config {
-        let rm_listen = format!(":{}", &conf.listen);
-        let host = &req.host.replace(rm_listen.as_str(), "");
-        if &conf.host == host {
-            res = output(&req.path, &conf);
-            break;
-        }
-    }
+    match req.headers.get("Host") {
+        Some(host) => {
+            for conf in config {
+                let rm_listen = format!(":{}", &conf.listen);
+                if &conf.host == &host.replace(rm_listen.as_str(), "") {
+                    res = output(&req, &conf);
+                    break;
+                }
+            }
+        },
+        None => { }
+    };
 
     if res.len() == 0 {
         for conf in config {
             if conf.host == String::from("") {
-                res = output(&req.path, &conf);
+                res = output(&req, &conf);
                 break;
             }
         }
@@ -148,49 +150,33 @@ fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
 }
 
 
-#[derive(Debug)]
-struct Request {
-    path: String,
-    host: String
-}
+fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
 
-fn parse_connection(request: String) -> Request {
-
-    let structure: Vec<&str> = request.split("\r\n").collect();
-    let url: Vec<&str> = structure[0].split(" ").collect();
-    let host: Vec<&str> = structure[1].split(" ").collect();
-
-    let mut path = url[1].replacen("/", "./", 1);
-    path = percent_decode(path.as_bytes())
-        .decode_utf8()
-        .unwrap()
-        .to_string();
-
-    Request {
-        path,
-        host: String::from(host[1])
-    }
-
-}
-
-
-fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
-
+    let cur_path = String::from(".") + &request.path;
     let path_buff = Path::new(&config.root)
-        .join(&route);
+        .join(&cur_path);
     let path = path_buff
         .to_str()
         .unwrap();
 
+    match request.headers.get("Host") {
+        None => {
+            return Response::new(StatusCode::_400)
+                .content_type("txt")
+                .body(b"400");
+        },
+        _ => {}
+    }
+
     match fs::metadata(&path) {
         Ok(meta) => {
             if meta.is_dir() {
-                if get_last_string(&route) == String::from("/") {
+                if get_last_string(&request.path) == String::from("/") {
                     if &config.index != "" {
                         let index_path = format!("{}/{}", &path, &config.index);
                         match fs::read(index_path) {
                             Ok(data) => {
-                                return Response::new(StatusCode::Ok)
+                                return Response::new(StatusCode::_200)
                                     .content_type(get_ext(&config.index))
                                     .headers(&config.headers)
                                     .body(&data[..])
@@ -201,15 +187,15 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
                         }
                     }
                     if config.directory {
-                        return Response::new(StatusCode::Ok)
+                        return Response::new(StatusCode::_200)
                             .content_type("html")
                             .headers(&config.headers)
-                            .body(response_dir_html(&path, &route).as_bytes())
+                            .body(response_dir_html(&path, &request.path).as_bytes())
                     }
                     return output_not_found(&config);
                 }else {
-                    let moved = route.replacen(".", "", 1) + "/";
-                    return Response::new(StatusCode::Moved)
+                    let moved = format!("{}/", request.path);
+                    return Response::new(StatusCode::_301)
                         .header("location", &moved)
                         .headers(&config.headers)
                         .body(b"")
@@ -217,7 +203,7 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
             }else {
                 match fs::read(&path) {
                     Ok(data) => {
-                        return Response::new(StatusCode::Ok)
+                        return Response::new(StatusCode::_200)
                             .content_type(get_ext(&path))
                             .headers(&config.headers)
                             .body(&data[..])
@@ -231,7 +217,7 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
         Err(_) => {
             match fallbacks(&path, &config.extensions) {
                 Ok(fallback) => {
-                    return Response::new(StatusCode::Ok)
+                    return Response::new(StatusCode::_200)
                         .content_type(get_ext(&fallback.1))
                         .headers(&config.headers)
                         .body(&fallback.0[..]);
@@ -248,26 +234,23 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
 
 fn fill_path(root: &str, file: &str) -> String {
 
-    let path: &str;
-    let buff: PathBuf;
     if Path::new(&file).is_absolute() {
-        path = file;
+        file.to_string()
     } else {
-        buff = Path::new(&root)
+        let buff = Path::new(&root)
             .join(&file);
-        path = buff
+        let path = buff
             .to_str()
             .unwrap();
+        path.to_string()
     }
-
-    path.to_string()
 
 }
 
 
 fn output_not_found(config: &ServerConfig) -> Vec<u8> {
 
-    let res = Response::new(StatusCode::NotFound)
+    let res = Response::new(StatusCode::_404)
         .headers(&config.headers);
 
     if &config.error.not_found == "" {
@@ -296,7 +279,7 @@ fn output_not_found(config: &ServerConfig) -> Vec<u8> {
 
 fn output_error(config: &ServerConfig) -> Vec<u8> {
 
-    let res = Response::new(StatusCode::Error)
+    let res = Response::new(StatusCode::_500)
         .headers(&config.headers);
 
     if &config.error.error == "" {
@@ -340,9 +323,9 @@ fn get_ext(route: &str) -> &str {
 }
 
 
-fn get_last_string(route: &String) -> String {
+fn get_last_string(path: &String) -> String {
 
-    match route.chars().last() {
+    match path.chars().last() {
         Some(l) => l.to_string(),
         None => String::from("")
     }
@@ -415,7 +398,7 @@ fn response_dir_html(path: &str, title: &String) -> String {
 
     template()
         .replace("{title}", title)
-        .replace("{list}", &files)
+        .replace("{files}", &files)
 
 }
 
