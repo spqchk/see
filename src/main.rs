@@ -4,17 +4,16 @@ use std::u8;
 use std::fs;
 use std::env;
 use std::thread;
-use std::io::prelude::*;
-use std::net::TcpStream;
-use std::net::TcpListener;
 use std::process;
 use std::path::Path;
+use std::io::prelude::*;
+use std::net::{TcpStream, TcpListener};
 mod response;
 use response::{StatusCode, Response};
 mod request;
 use request::Request;
 mod html;
-use html::template;
+use html::TEMPLATE;
 mod config;
 use config::ServerConfig;
 
@@ -396,7 +395,7 @@ fn response_dir_html(path: &str, title: &String) -> String {
 
     }
 
-    template()
+    TEMPLATE
         .replace("{title}", title)
         .replace("{files}", &files)
 

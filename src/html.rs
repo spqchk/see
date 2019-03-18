@@ -1,9 +1,7 @@
 
 
 // HTML directory template
-pub fn template() -> &'static str {
-
-    return r#"<!DOCTYPE html>
+pub const TEMPLATE: &'static str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -38,8 +36,5 @@ pub fn template() -> &'static str {
     </ul>
 </body>
 </html>"#;
-
-}
-
 
 
