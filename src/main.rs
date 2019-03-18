@@ -9,6 +9,7 @@ use std::net::TcpStream;
 use std::net::TcpListener;
 use std::process;
 use std::path::Path;
+use std::path::PathBuf;
 mod response;
 use response::{StatusCode, Response};
 mod html;
@@ -23,28 +24,16 @@ fn main() {
 
     let mut config_path = match get_arg(String::from("-c")) {
         Some(p) => p,
-        None => String::from("./dusk.yml")
+        None => String::from("./sws.yml")
     };
 
-    if !Path::new(&config_path).is_absolute() {
-        let cwd = env::current_dir()
-            .unwrap();
-        let full_path = cwd
-            .join(&config_path);
-        match full_path.canonicalize() {
-            Ok(buf) => {
-                let str = buf
-                    .to_str()
-                    .unwrap();
-                config_path = str
-                    .to_string();
-            },
-            Err(err) => {
-                println!("Failed to read configuration file: {}", err.to_string());
-                process::exit(1);
-            }
-        }
-    }
+    let config_buf = env::current_dir()
+        .unwrap();
+    let root = config_buf
+        .to_str()
+        .unwrap();
+
+    config_path = fill_path(root, &config_path);
 
     let configs = match ServerConfig::new(config_path.as_str()) {
         Ok(config) => config,
@@ -207,10 +196,7 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
                                     .body(&data[..])
                             },
                             Err(_) => {
-                                return Response::new(StatusCode::NotFound)
-                                    .content_type("txt")
-                                    .headers(&config.headers)
-                                    .body(b"404");
+                                return output_not_found(&config);
                             }
                         }
                     }
@@ -220,10 +206,7 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
                             .headers(&config.headers)
                             .body(response_dir_html(&path, &route).as_bytes())
                     }
-                    return Response::new(StatusCode::NotFound)
-                        .content_type("txt")
-                        .headers(&config.headers)
-                        .body(b"404");
+                    return output_not_found(&config);
                 }else {
                     let moved = route.replacen(".", "", 1) + "/";
                     return Response::new(StatusCode::Moved)
@@ -240,10 +223,7 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
                             .body(&data[..])
                     },
                     Err(_) => {
-                        return Response::new(StatusCode::Error)
-                            .content_type("txt")
-                            .headers(&config.headers)
-                            .body(b"500")
+                        return output_error(&config);
                     }
                 }
             }
@@ -257,14 +237,87 @@ fn output(route: &String, config: &ServerConfig) -> Vec<u8> {
                         .body(&fallback.0[..]);
                 },
                 Err(_) => {
-                    return Response::new(StatusCode::NotFound)
-                        .content_type("txt")
-                        .headers(&config.headers)
-                        .body(b"404");
+                    return output_not_found(&config);
                 }
             }
         }
     };
+
+}
+
+
+fn fill_path(root: &str, file: &str) -> String {
+
+    let path: &str;
+    let buff: PathBuf;
+    if Path::new(&file).is_absolute() {
+        path = file;
+    } else {
+        buff = Path::new(&root)
+            .join(&file);
+        path = buff
+            .to_str()
+            .unwrap();
+    }
+
+    path.to_string()
+
+}
+
+
+fn output_not_found(config: &ServerConfig) -> Vec<u8> {
+
+    let res = Response::new(StatusCode::NotFound)
+        .headers(&config.headers);
+
+    if &config.error.not_found == "" {
+        return res
+                .content_type("txt")
+                .body(b"404")
+    }
+
+    let path = fill_path(&config.root, &config.error.not_found);
+
+    match fs::read(path) {
+            Ok(data) => {
+                return res
+                    .content_type(get_ext(&config.error.not_found))
+                    .body(&data[..])
+            },
+            Err(_) => {
+                return res
+                    .content_type("txt")
+                    .body(b"404");
+            }
+        }
+
+}
+
+
+fn output_error(config: &ServerConfig) -> Vec<u8> {
+
+    let res = Response::new(StatusCode::Error)
+        .headers(&config.headers);
+
+    if &config.error.error == "" {
+        return res
+            .content_type("txt")
+            .body(b"500")
+    }
+    let path = fill_path(&config.root, &config.error.error);
+
+    match fs::read(path) {
+        Ok(data) => {
+            return res
+                .content_type(get_ext(&config.error.error))
+                .body(&data[..])
+        },
+        Err(_) => {
+            return res
+                .content_type("txt")
+                .body(b"500");
+        }
+    }
 
 }
 

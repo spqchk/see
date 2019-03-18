@@ -16,7 +16,15 @@ pub struct ServerConfig {
     pub index: String,
     pub headers: Vec<Vec<String>>,
     pub extensions: Vec<String>,
+    pub error: Error,
     pub log: Log
+}
+
+
+#[derive(Debug, Default)]
+pub struct Error {
+    pub not_found: String,
+    pub error: String
 }
 
 
@@ -25,6 +33,7 @@ pub struct Log {
     pub success: String,
     pub error: String
 }
+
 
 
 impl ServerConfig {
@@ -98,12 +107,22 @@ impl ServerConfig {
                 None => vec![]
             };
 
-            let success = match &server["log"]["success"].as_str() {
+            let error_not_found = match &server["error"][404].as_str() {
                 Some(d) => *d,
                 None => ""
             }.to_string();
 
-            let error = match &server["log"]["error"].as_str() {
+            let error_error = match &server["error"][500].as_str() {
+                Some(d) => *d,
+                None => ""
+            }.to_string();
+
+            let log_success = match &server["log"]["success"].as_str() {
+                Some(d) => *d,
+                None => ""
+            }.to_string();
+
+            let log_error = match &server["log"]["error"].as_str() {
                 Some(d) => *d,
                 None => ""
             }.to_string();
@@ -117,9 +136,13 @@ impl ServerConfig {
                 index,
                 headers,
                 extensions,
+                error: Error {
+                    not_found: error_not_found,
+                    error: error_error
+                },
                 log: Log {
-                    success,
-                    error
+                    success: log_success,
+                    error: log_error
                 }
             };
 

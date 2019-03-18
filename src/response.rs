@@ -26,7 +26,7 @@ impl Response {
             StatusCode::Moved => String::from("HTTP/1.1 301\r\n")
         };
 
-        response.header += "Server: dusk\r\n";
+        response.header += "Server: sws\r\n";
         response
 
     }
