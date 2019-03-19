@@ -5,7 +5,7 @@ use yaml_rust::{YamlLoader};
 use std::fs;
 use std::result::Result;
 
-
+// Configuration of each service
 #[derive(Debug, Default)]
 pub struct ServerConfig {
     pub host: String,
@@ -14,20 +14,27 @@ pub struct ServerConfig {
     pub gzip: bool,
     pub directory: bool,
     pub index: String,
-    pub headers: Vec<Vec<String>>,
+    pub headers: Vec<Header>,
     pub extensions: Vec<String>,
     pub error: Error,
     pub log: Log
 }
 
+// Header -> key: value
+#[derive(Debug, Default)]
+pub struct Header {
+    pub key: String,
+    pub value: String
+}
 
+// Error page
 #[derive(Debug, Default)]
 pub struct Error {
     pub not_found: String,
     pub error: String
 }
 
-
+// Log path
 #[derive(Debug, Default)]
 pub struct Log {
     pub success: String,
@@ -37,6 +44,7 @@ pub struct Log {
 
 impl ServerConfig {
 
+    // The same port service is a group
     pub fn new(path: String) -> Result<Vec<Vec<ServerConfig>>, String>  {
 
         let content = match fs::read_to_string(&path) {
@@ -108,11 +116,22 @@ impl ServerConfig {
 
             let headers = match &server["headers"].as_vec() {
                 Some(header) => {
-                    let mut vec: Vec<Vec<String>> = vec![];
-                    for x in header.iter() {
-                        let a = x.as_str().unwrap();
-                        let v: Vec<&str> = a.split(" ").collect();
-                        vec.push(vec![v[0].to_string(), v[1].to_string()]);
+                    let mut vec: Vec<Header> = vec![];
+                    for item in header.iter() {
+                        let header = match item.as_str() {
+                            Some(d) => d,
+                            None => {
+                                return Err(String::from("Header should be a string"));
+                            }
+                        };
+                        let split: Vec<&str> = header.split(" ").collect();
+                        if split.len() != 2 {
+                            return Err(String::from("Key and value in the header are separated by a space"));
+                        }
+                        vec.push(Header {
+                            key: split[0].to_string(),
+                            value: split[1].to_string()
+                        });
                     }
                     vec
                 },
@@ -120,12 +139,17 @@ impl ServerConfig {
             };
 
             let extensions = match &server["extensions"].as_vec() {
-                Some(exts) => {
+                Some(extensions) => {
                     let mut vec: Vec<String> = vec![];
-                    for x in exts.iter() {
-                        let e = x.as_str().unwrap();
-                        vec.push(e.to_string());
-                    }
+                    for item in extensions.iter() {
+                        let ext = match item.as_str() {
+                            Some(d) => d,
+                            None => {
+                                return Err(String::from("Each item in extensions should be a string"));
+                            }
+                        };
+                        vec.push(ext.to_string());
+                    };
                     vec
                 },
                 None => vec![]

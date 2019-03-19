@@ -1,5 +1,5 @@
 
-# sws
+# sws [![Build Status](https://img.shields.io/travis/wyhaya/sws.svg?style=flat-square)](https://travis-ci.org/wyhaya/sws)
 
 sws is a static web server, developed using rust.
 
@@ -46,4 +46,4 @@ Complete configuration file example:
 * [ ] Log
 * [ ] Gzip
 * [ ] Proxy
-* [ ] HTTPS
+* [ ] HTTPS / HTTP2

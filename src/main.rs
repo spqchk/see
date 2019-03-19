@@ -176,7 +176,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                         match fs::read(index_path) {
                             Ok(data) => {
                                 return Response::new(StatusCode::_200)
-                                    .content_type(get_ext(&config.index))
+                                    .content_type(get_extension(&config.index))
                                     .headers(&config.headers)
                                     .body(&data[..])
                             },
@@ -203,7 +203,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                 match fs::read(&path) {
                     Ok(data) => {
                         return Response::new(StatusCode::_200)
-                            .content_type(get_ext(&path))
+                            .content_type(get_extension(&path))
                             .headers(&config.headers)
                             .body(&data[..])
                     },
@@ -217,7 +217,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             match fallbacks(&path, &config.extensions) {
                 Ok(fallback) => {
                     return Response::new(StatusCode::_200)
-                        .content_type(get_ext(&fallback.1))
+                        .content_type(get_extension(&fallback.1))
                         .headers(&config.headers)
                         .body(&fallback.0[..]);
                 },
@@ -263,7 +263,7 @@ fn output_not_found(config: &ServerConfig) -> Vec<u8> {
     match fs::read(path) {
             Ok(data) => {
                 return res
-                    .content_type(get_ext(&config.error.not_found))
+                    .content_type(get_extension(&config.error.not_found))
                     .body(&data[..])
             },
             Err(_) => {
@@ -291,7 +291,7 @@ fn output_error(config: &ServerConfig) -> Vec<u8> {
     match fs::read(path) {
         Ok(data) => {
             return res
-                .content_type(get_ext(&config.error.error))
+                .content_type(get_extension(&config.error.error))
                 .body(&data[..])
         },
         Err(_) => {
@@ -303,30 +303,39 @@ fn output_error(config: &ServerConfig) -> Vec<u8> {
 
 }
 
+// Get the file extension
+fn get_extension(path: &str) -> &str {
 
-fn get_ext(route: &str) -> &str {
-
-    let extension = Path::new(route)
+    let extension = Path::new(path)
         .extension();
-
-    match extension {
-        Some(ext) => {
-            match ext.to_str() {
-                Some(e) => e,
-                None => ""
-            }
-        },
-        None => ""
+    
+    if let Some(ext) = extension {
+        match ext.to_str() {
+            Some(e) => e,
+            None => ""
+        }
+    } else {
+        ""
     }
 
 }
 
+#[test]
+fn test_get_extension() {
+    assert_eq!(get_extension("index.html"), "html");
+    assert_eq!(get_extension("/index/index.rs"), "rs");
+    assert_eq!(get_extension(""), "");
+    assert_eq!(get_extension("index"), "");
+}
 
-fn get_last_string(path: &String) -> String {
 
-    match path.chars().last() {
-        Some(l) => l.to_string(),
-        None => String::from("")
+// Get the last character
+fn get_last_string(path: &str) -> String {
+
+    if let Some(last) = path.chars().last() {
+        last.to_string()
+    }else {
+        String::from("")
     }
 
 }
@@ -400,4 +409,5 @@ fn response_dir_html(path: &str, title: &String) -> String {
         .replace("{files}", &files)
 
 }
+
 

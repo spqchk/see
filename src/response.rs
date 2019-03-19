@@ -1,5 +1,7 @@
 
 
+use crate::config::Header;
+
 #[derive(Default)]
 pub struct Response {
     line: String,
@@ -16,6 +18,7 @@ pub enum StatusCode {
 
 impl Response {
 
+    // HTTP response
     pub fn new(status: StatusCode) -> Response {
 
         let mut response = Response::default();
@@ -28,11 +31,13 @@ impl Response {
             StatusCode::_500 => String::from("HTTP/1.1 500\r\n")
         };
 
+        // Add service name
         response.header += "Server: sws\r\n";
         response
 
     }
 
+    // Set header
     pub fn header(mut self, key: &str, value:  &str) -> Response {
 
         self.header += key;
@@ -46,12 +51,13 @@ impl Response {
 
     }
 
-    pub fn headers(mut self, headers: &Vec<Vec<String>>) -> Response {
+    // Set multiple header
+    pub fn headers(mut self, headers: &Vec<Header>) -> Response {
 
         for header in headers {
-            self.header += header[0].as_str();
+            self.header += &header.key;
             self.header += ": ";
-            self.header += header[1].as_str();
+            self.header += &header.value;
             self.header += "\r\n";
         }
 
@@ -61,7 +67,7 @@ impl Response {
 
     }
 
-
+    // Set the content-type based on the file extension
     pub fn content_type(self, ext: &str) -> Response {
 
         let value = match &ext.as_ref() {
@@ -139,6 +145,7 @@ impl Response {
 
     }
 
+    // Build a complete response
     pub fn body(self, data: &[u8]) -> Vec<u8> {
 
         let res = self.header("Content-Length", &data.len().to_string());
