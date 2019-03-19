@@ -41,7 +41,8 @@ impl Request {
         let req = split(&buff, vec![13, 10]);
         let line = split(&req[0], vec![32]);
         let method = String::from_utf8_lossy(&line[0]).to_string();
-        let path = percent_decode(&line[1])
+        let full_path = split(&line[1], vec![63]);
+        let path = percent_decode(&full_path[0])
             .decode_utf8()
             .unwrap()
             .to_string();
@@ -74,7 +75,7 @@ impl Request {
 
 #[test]
 fn test_parse_request() {
-    let buff = b"GET /abc HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: */*\r\n\r\n";
+    let buff = b"GET /abc?type=1 HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: */*\r\n\r\n";
     let req = Request::new(buff);
     assert_eq!(&req.method, "GET");
     assert_eq!(&req.path, "/abc");
