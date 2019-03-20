@@ -5,7 +5,11 @@ sws is a static web server, developed using rust.
 
 ## Features
 
-## Install
+## Use
+
+```bash
+cargo +nightly run
+```
 
 ## Config
 
@@ -42,8 +46,9 @@ Complete configuration file example:
 * [x] Extensions
 * [ ] Parse request `50%`
 * [x] Custom error
-* [ ] Async
+* [x] Async
 * [ ] Log
+* [ ] Auth
 * [ ] Gzip
 * [ ] Proxy
 * [ ] HTTPS / HTTP2

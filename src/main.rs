@@ -1,4 +1,5 @@
-
+#![feature(futures_api)]
+#![feature(async_await)]
 
 use std::u8;
 use std::fs;
@@ -7,6 +8,7 @@ use std::thread;
 use std::process;
 use std::path::Path;
 use std::io::prelude::*;
+use futures::executor::block_on;
 use std::net::{TcpStream, TcpListener};
 mod response;
 use response::{StatusCode, Response};
@@ -96,17 +98,15 @@ fn bind_tcp(config: Vec<ServerConfig>) {
 
     for stream in server.incoming() {
         if let Ok(stream) = stream {
-//            thread::spawn(|| {
-//                handle_connection(stream);
-//            });
-            handle_connection(stream, &config);
+            let future = handle_connection(stream, &config);
+            block_on(future);
         }
     }
 
 }
 
 
-fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
+async fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
 
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
