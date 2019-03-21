@@ -4,6 +4,8 @@ extern crate yaml_rust;
 use yaml_rust::{YamlLoader};
 use std::fs;
 use std::result::Result;
+use crate::log::{Log as Da};
+use crate::fill_path;
 
 // Configuration of each service
 #[derive(Debug, Default)]
@@ -156,24 +158,24 @@ impl ServerConfig {
             };
 
             let error_not_found = match &server["error"][404].as_str() {
-                Some(d) => *d,
-                None => ""
-            }.to_string();
+                Some(d) => fill_path(&root, d),
+                None => String::from("")
+            };
 
             let error_error = match &server["error"][500].as_str() {
-                Some(d) => *d,
-                None => ""
-            }.to_string();
+                Some(d) => fill_path(&root, d),
+                None => String::from("")
+            };
 
             let log_success = match &server["log"]["success"].as_str() {
-                Some(d) => *d,
-                None => ""
-            }.to_string();
+                Some(d) => fill_path(&root, d),
+                None => String::from("")
+            };
 
             let log_error = match &server["log"]["error"].as_str() {
-                Some(d) => *d,
-                None => ""
-            }.to_string();
+                Some(d) => fill_path(&root, d),
+                None =>  String::from("")
+            };
 
             let config = ServerConfig {
                 host,

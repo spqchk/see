@@ -18,6 +18,7 @@ mod html;
 use html::TEMPLATE;
 mod config;
 use config::ServerConfig;
+mod log;
 
 
 fn main() {
@@ -38,7 +39,7 @@ fn main() {
     let configs = match ServerConfig::new(config_path) {
         Ok(config) => config,
         Err(msg) => {
-            println!("\x1b[31msws: {}\x1b[0m", msg);
+            eprintln!("\x1b[31msws: {}\x1b[0m", msg);
             process::exit(1);
         }
     };
@@ -172,7 +173,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             if meta.is_dir() {
                 if get_last_string(&request.path) == String::from("/") {
                     if &config.index != "" {
-                        let index_path = format!("{}/{}", &path, &config.index);
+                        let index_path = fill_path(&path, &config.index);
                         match fs::read(index_path) {
                             Ok(data) => {
                                 return Response::new(StatusCode::_200)
@@ -231,7 +232,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
 }
 
 
-fn fill_path(root: &str, file: &str) -> String {
+pub fn fill_path(root: &str, file: &str) -> String {
 
     if Path::new(&file).is_absolute() {
         file.to_string()
@@ -258,9 +259,7 @@ fn output_not_found(config: &ServerConfig) -> Vec<u8> {
                 .body(b"404")
     }
 
-    let path = fill_path(&config.root, &config.error.not_found);
-
-    match fs::read(path) {
+    match fs::read(&config.error.not_found) {
             Ok(data) => {
                 return res
                     .content_type(get_extension(&config.error.not_found))
@@ -286,9 +285,8 @@ fn output_error(config: &ServerConfig) -> Vec<u8> {
             .content_type("txt")
             .body(b"500")
     }
-    let path = fill_path(&config.root, &config.error.error);
 
-    match fs::read(path) {
+    match fs::read(&config.error.error) {
         Ok(data) => {
             return res
                 .content_type(get_extension(&config.error.error))

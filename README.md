@@ -46,8 +46,8 @@ Complete configuration file example:
 * [x] Extensions
 * [ ] Parse request `50%`
 * [x] Custom error
-* [x] Async
-* [ ] Log
+* [x] Async/response
+* [ ] Async/log `20%`
 * [ ] Auth
 * [ ] Gzip
 * [ ] Proxy
