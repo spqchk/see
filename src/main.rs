@@ -1,6 +1,8 @@
 #![feature(futures_api)]
 #![feature(async_await)]
 
+extern crate base64;
+use base64::{encode, decode};
 use std::u8;
 use std::fs;
 use std::env;
@@ -152,6 +154,28 @@ async fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
 
 fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
 
+    //    Do you need authentication
+    if let Some(auth) = &config.auth {
+        let authorization = request.headers.get("Authorization");
+        if let Some(value) = authorization {
+            let config_auth = format!("{}:{}", auth.user, auth.password);
+            // Support multiple ways ?
+            let base64 = value.replacen("Basic ", "", 1);
+            let base64_bytes = decode(&base64).unwrap();
+            if config_auth.as_bytes() != base64_bytes.as_slice() {
+                return Response::new(StatusCode::_401)
+                    .content_type("")
+                    .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
+                    .body(b"401");
+            }
+        }else {
+            return Response::new(StatusCode::_401)
+                .content_type("")
+                .header("WWW-Authenticate", "Basic realm=\"Need to verify identity\"")
+                .body(b"401");
+        }
+    }
+
     let cur_path = String::from(".") + &request.path;
     let path_buff = Path::new(&config.root)
         .join(&cur_path);
@@ -159,6 +183,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
         .to_str()
         .unwrap();
 
+    // A Host header field must be sent in all HTTP/1.1 request messages
     match request.headers.get("Host") {
         None => {
             return Response::new(StatusCode::_400)

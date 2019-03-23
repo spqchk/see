@@ -26,8 +26,11 @@ Complete configuration file example:
     index: index.html     # Index file
     directory: true       # Whether to display the file list
     headers:              # Header in response
-      - auth 12345
+      - Access-Control-Allow-Origin *
       - Set-Cookie 12345
+    auth:                 # Http user and password verification
+      user: name
+      password: pwd
     extensions:           # Sets file extension fallbacks
       - html
       - htm
@@ -48,7 +51,7 @@ Complete configuration file example:
 * [x] Custom error
 * [x] Async/response
 * [ ] Async/log `20%`
-* [ ] Auth
+* [x] HTTP Auth
 * [ ] Gzip
 * [ ] Proxy
 * [ ] HTTPS / HTTP2

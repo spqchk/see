@@ -12,6 +12,7 @@ pub enum StatusCode {
     _200,
     _301,
     _400,
+    _401,
     _404,
     _500
 }
@@ -27,6 +28,7 @@ impl Response {
             StatusCode::_200 => String::from("HTTP/1.1 200 OK\r\n"),
             StatusCode::_400 => String::from("HTTP/1.1 400\r\n"),
             StatusCode::_301 => String::from("HTTP/1.1 301\r\n"),
+            StatusCode::_401 => String::from("HTTP/1.1 401\r\n"),
             StatusCode::_404 => String::from("HTTP/1.1 404\r\n"),
             StatusCode::_500 => String::from("HTTP/1.1 500\r\n")
         };

@@ -18,6 +18,7 @@ pub struct ServerConfig {
     pub index: String,
     pub headers: Vec<Header>,
     pub extensions: Vec<String>,
+    pub auth: Option<Auth>,
     pub error: Error,
     pub log: Log
 }
@@ -34,6 +35,13 @@ pub struct Header {
 pub struct Error {
     pub not_found: String,
     pub error: String
+}
+
+// HTTP auth
+#[derive(Debug, Default)]
+pub struct Auth {
+    pub user: String,
+    pub password: String
 }
 
 // Log path
@@ -177,6 +185,25 @@ impl ServerConfig {
                 None =>  String::from("")
             };
 
+            let user = match &server["auth"]["user"].as_str() {
+                Some(d) => *d,
+                None => ""
+            }.to_string();
+
+            let password = match &server["auth"]["password"].as_str() {
+                Some(d) => *d,
+                None => ""
+            }.to_string();
+
+            let auth = if user == "" || password == "" {
+                None
+            }else {
+                Some(Auth {
+                    user,
+                    password
+                })
+            };
+
             let config = ServerConfig {
                 host,
                 listen,
@@ -193,7 +220,8 @@ impl ServerConfig {
                 log: Log {
                     success: log_success,
                     error: log_error
-                }
+                },
+                auth
             };
 
             let mut has = false;
