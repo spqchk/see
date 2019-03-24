@@ -122,22 +122,21 @@ async fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
     let mut res: Vec<u8> = vec![];
     let req = Request::new(&buffer[..]);
 
-    match req.headers.get("Host") {
-        Some(host) => {
-            for conf in config {
-                let rm_listen = format!(":{}", &conf.listen);
-                if &conf.host == &host.replace(rm_listen.as_str(), "") {
+    if let Some(host) = req.headers.get("host") {
+        for conf in config {
+            let rm_listen = format!(":{}", &conf.listen);
+            if let Some(val) = &conf.host {
+                if val == &host.replace(rm_listen.as_str(), "") {
                     res = output(&req, &conf);
                     break;
                 }
             }
-        },
-        None => { }
-    };
+        }
+    }
 
     if res.len() == 0 {
         for conf in config {
-            if conf.host == String::from("") {
+            if let None = conf.host {
                 res = output(&req, &conf);
                 break;
             }
@@ -154,9 +153,26 @@ async fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
 
 fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
 
+    // Not allowed method
+    let allow = config.methods.iter().find(|item| {
+        return **item == request.method;
+    });
+    if let None = allow {
+        return Response::new(StatusCode::_405)
+            .content_type("txt")
+            .body(b"405");
+    }
+
+    // A Host header field must be sent in all HTTP/1.1 request messages
+    if let None = request.headers.get("host") {
+        return Response::new(StatusCode::_400)
+            .content_type("txt")
+            .body(b"400");
+    }
+
     //    Do you need authentication
     if let Some(auth) = &config.auth {
-        let authorization = request.headers.get("Authorization");
+        let authorization = request.headers.get("authorization");
         if let Some(value) = authorization {
             let config_auth = format!("{}:{}", auth.user, auth.password);
             // Support multiple ways ?
@@ -183,26 +199,16 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
         .to_str()
         .unwrap();
 
-    // A Host header field must be sent in all HTTP/1.1 request messages
-    match request.headers.get("Host") {
-        None => {
-            return Response::new(StatusCode::_400)
-                .content_type("txt")
-                .body(b"400");
-        },
-        _ => {}
-    }
-
     match fs::metadata(&path) {
         Ok(meta) => {
             if meta.is_dir() {
                 if get_last_string(&request.path) == String::from("/") {
-                    if &config.index != "" {
-                        let index_path = fill_path(&path, &config.index);
+                    if let Some(index) = &config.index {
+                        let index_path = fill_path(&path, &index);
                         match fs::read(index_path) {
                             Ok(data) => {
                                 return Response::new(StatusCode::_200)
-                                    .content_type(get_extension(&config.index))
+                                    .content_type(get_extension(index))
                                     .headers(&config.headers)
                                     .body(&data[..])
                             },
@@ -240,16 +246,20 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             }
         },
         Err(_) => {
-            match fallbacks(&path, &config.extensions) {
-                Ok(fallback) => {
-                    return Response::new(StatusCode::_200)
-                        .content_type(get_extension(&fallback.1))
-                        .headers(&config.headers)
-                        .body(&fallback.0[..]);
-                },
-                Err(_) => {
-                    return output_not_found(&config);
+            if let Some(exts) = &config.extensions {
+                match fallbacks(&path, exts) {
+                    Ok(fallback) => {
+                        return Response::new(StatusCode::_200)
+                            .content_type(get_extension(&fallback.1))
+                            .headers(&config.headers)
+                            .body(&fallback.0[..]);
+                    },
+                    Err(_) => {
+                        return output_not_found(&config);
+                    }
                 }
+            }else {
+                return output_not_found(&config);
             }
         }
     };
@@ -278,16 +288,11 @@ fn output_not_found(config: &ServerConfig) -> Vec<u8> {
     let res = Response::new(StatusCode::_404)
         .headers(&config.headers);
 
-    if &config.error.not_found == "" {
-        return res
-                .content_type("txt")
-                .body(b"404")
-    }
-
-    match fs::read(&config.error.not_found) {
+    if let Some(file) = &config.error.not_found {
+        match fs::read(&file) {
             Ok(data) => {
                 return res
-                    .content_type(get_extension(&config.error.not_found))
+                    .content_type(get_extension(file))
                     .body(&data[..])
             },
             Err(_) => {
@@ -296,6 +301,11 @@ fn output_not_found(config: &ServerConfig) -> Vec<u8> {
                     .body(b"404");
             }
         }
+    }else {
+        return res
+            .content_type("txt")
+            .body(b"404")
+    }
 
 }
 
@@ -305,23 +315,23 @@ fn output_error(config: &ServerConfig) -> Vec<u8> {
     let res = Response::new(StatusCode::_500)
         .headers(&config.headers);
 
-    if &config.error.error == "" {
+    if let Some(file) = &config.error.error {
+        match fs::read(&file) {
+            Ok(data) => {
+                return res
+                    .content_type(get_extension(file))
+                    .body(&data[..])
+            },
+            Err(_) => {
+                return res
+                    .content_type("txt")
+                    .body(b"500");
+            }
+        }
+    }else {
         return res
             .content_type("txt")
             .body(b"500")
-    }
-
-    match fs::read(&config.error.error) {
-        Ok(data) => {
-            return res
-                .content_type(get_extension(&config.error.error))
-                .body(&data[..])
-        },
-        Err(_) => {
-            return res
-                .content_type("txt")
-                .body(b"500");
-        }
     }
 
 }
@@ -373,20 +383,14 @@ fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
 
     let has_ext = Path::new(&file)
         .extension();
-    match has_ext {
-        Some(_) => {
-            return Err(());
-        },
-        None => { }
+    if let Some(_) = has_ext {
+        return Err(());
     }
 
     for x in exts {
         let path = format!("{}.{}", file, x);
-        match fs::read(&path) {
-            Ok(data) => {
-                return Ok(Fallbacks(data, path));
-            },
-            Err(_) => {}
+        if let Ok(data) = fs::read(&path) {
+            return Ok(Fallbacks(data, path));
         }
     }
 

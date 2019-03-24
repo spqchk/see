@@ -22,12 +22,17 @@ Complete configuration file example:
     host: domain.com      # Domain name to be bound
     listen: 80            # Port to be monitored
     root: /root/www       # Directory that requires service
-    gzip: true            # Whether to open Gzip
     index: index.html     # Index file
     directory: true       # Whether to display the file list
     headers:              # Header in response
-      - Access-Control-Allow-Origin *
-      - Set-Cookie 12345
+      Access-Control-Allow-Origin: *
+      Set-Cookie: 12345
+    gzip:                 # Whether to open Gzip
+      - html
+      - css
+    methods:              # Method of allowing requests
+      - POST
+      - PUT
     auth:                 # Http user and password verification
       user: name
       password: pwd

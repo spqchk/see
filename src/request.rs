@@ -56,8 +56,9 @@ impl Request {
             if header.len() != 2 {
                 break;
             }
+            // The key in the header is uniformly used in lowercase
             headers.insert(
-                String::from_utf8_lossy(&header[0]).to_string(),
+                String::from_utf8_lossy(&header[0]).to_lowercase(),
                 String::from_utf8_lossy(&header[1]).to_string(),
             );
         }
