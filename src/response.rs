@@ -1,11 +1,17 @@
 
 
+extern crate libflate;
 use crate::config::Header;
+use std::io::Write;
+use libflate::gzip;
+use libflate::deflate;
+use libflate::zlib;
 
 #[derive(Default)]
 pub struct Response {
     line: String,
-    header: String
+    header: String,
+    compress: Vec<Compress>
 }
 
 pub enum StatusCode {
@@ -16,6 +22,13 @@ pub enum StatusCode {
     _404,
     _405,
     _500
+}
+
+#[derive(Debug)]
+pub enum Compress {
+    Gzip,
+    Deflate,
+    Br
 }
 
 impl Response {
@@ -149,6 +162,13 @@ impl Response {
 
     }
 
+    pub fn compress(self, way: Vec<Compress>) -> Response {
+        Response {
+            compress: way,
+            ..self
+        }
+    }
+
     // Build a complete response
     pub fn body(self, data: &[u8]) -> Vec<u8> {
 
@@ -159,10 +179,45 @@ impl Response {
         top.push_str(&res.header);
         top.push_str("\r\n");
 
-        [&top.as_bytes()[..], &data[..]].concat()
+        if &self.compress.len() != &0 {
+            let d = self.min(data);
+            [&top.as_bytes()[..], &d[..]].concat()
+        }else {
+            [&top.as_bytes()[..], &data[..]].concat()
+        }
 
     }
 
+    fn min(self, data: &[u8]) -> Vec<u8> {
+        for way in self.compress {
+            match way {
+                Compress::Gzip => {
+                    self.header("Content-Encoding", "gzip");
+                    return gzip(data);
+                },
+                Compress::Deflate => {
+                    self.header("Content-Encoding", "deflate");
+                    return deflate(data);
+                },
+                Compress::Br => {
+                    break;
+                }
+            }
+        }
+        return gzip(data);
+    }
 
+}
+
+fn gzip(data: &[u8]) -> Vec<u8> {
+    let mut encoder = gzip::Encoder::new(Vec::new()).unwrap();
+    encoder.write_all(data).unwrap();
+    encoder.finish().into_result().unwrap()
+}
+
+fn deflate(data: &[u8]) -> Vec<u8> {
+    let mut encoder = deflate::Encoder::new(Vec::new());
+    encoder.write_all(&data).unwrap();
+    encoder.finish().into_result().unwrap()
 }
 

@@ -27,7 +27,7 @@ Complete configuration file example:
     headers:              # Header in response
       Access-Control-Allow-Origin: *
       Set-Cookie: 12345
-    gzip:                 # Whether to open Gzip
+    compress:             # File type that needs to be compressed
       - html
       - css
     methods:              # Method of allowing requests

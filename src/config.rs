@@ -13,7 +13,7 @@ pub struct ServerConfig {
     pub host: Option<String>,
     pub listen: i64,
     pub root: String,
-    pub gzip: bool,
+    pub compress: Option<Vec<String>>,
     pub directory: bool,
     pub index: Option<String>,
     pub headers: Vec<Header>,  // Option<Vec<Header>>
@@ -110,9 +110,17 @@ impl ServerConfig {
                 }
             };
 
-            let gzip = match &server["gzip"].as_bool() {
-                Some(d) => *d,
-                None => false
+            let compress = match &server["compress"].as_vec() {
+                Some(extensions) => {
+                    let mut vec: Vec<String> = vec![];
+                    for item in extensions.iter() {
+                        if let Some(ext) = item.as_str() {
+                            vec.push(ext.to_string());
+                        }
+                    };
+                    Some(vec)
+                },
+                None => None
             };
 
             let directory = match &server["directory"].as_bool() {
@@ -215,7 +223,7 @@ impl ServerConfig {
                 host,
                 listen,
                 root,
-                gzip,
+                compress,
                 directory,
                 index,
                 headers,

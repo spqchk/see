@@ -13,7 +13,7 @@ use std::io::prelude::*;
 use futures::executor::block_on;
 use std::net::{TcpStream, TcpListener};
 mod response;
-use response::{StatusCode, Response};
+use response::{StatusCode, Compress, Response};
 mod request;
 use request::Request;
 mod html;
@@ -170,7 +170,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             .body(b"400");
     }
 
-    //    Do you need authentication
+    // Do you need authentication
     if let Some(auth) = &config.auth {
         let authorization = request.headers.get("authorization");
         if let Some(value) = authorization {
@@ -187,7 +187,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
         }else {
             return Response::new(StatusCode::_401)
                 .content_type("")
-                .header("WWW-Authenticate", "Basic realm=\"Need to verify identity\"")
+                .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
                 .body(b"401");
         }
     }
@@ -207,9 +207,11 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                         let index_path = fill_path(&path, &index);
                         match fs::read(index_path) {
                             Ok(data) => {
+                                let ext = get_extension(index);
                                 return Response::new(StatusCode::_200)
-                                    .content_type(get_extension(index))
+                                    .content_type(ext)
                                     .headers(&config.headers)
+                                    .compress(compress(&request, &config, &ext))
                                     .body(&data[..])
                             },
                             Err(_) => {
@@ -234,9 +236,11 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             }else {
                 match fs::read(&path) {
                     Ok(data) => {
+                        let ext = get_extension(&path);
                         return Response::new(StatusCode::_200)
-                            .content_type(get_extension(&path))
+                            .content_type(&ext)
                             .headers(&config.headers)
+                            .compress(compress(&request, &config, &ext))
                             .body(&data[..])
                     },
                     Err(_) => {
@@ -250,9 +254,10 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                 match fallbacks(&path, exts) {
                     Ok(fallback) => {
                         return Response::new(StatusCode::_200)
-                            .content_type(get_extension(&fallback.1))
+                            .content_type(&fallback.ext)
                             .headers(&config.headers)
-                            .body(&fallback.0[..]);
+                            .compress(compress(&request, &config, &fallback.ext))
+                            .body(&fallback.data);
                     },
                     Err(_) => {
                         return output_not_found(&config);
@@ -263,6 +268,48 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             }
         }
     };
+
+}
+
+
+fn compress(request: &Request, config: &ServerConfig, ext: &str) -> Vec<Compress> {
+
+    if let Some(exts) = &config.compress {
+        let allow = exts.iter().find(|item| {
+            return *item == ext
+        });
+        if let None = allow {
+            return vec![]
+        }
+    }else {
+        return vec![]
+    }
+
+    let encoding = if let Some(val) = request.headers.get("accept-encoding") {
+        val
+    }else {
+        return vec![]
+    };
+
+    let can_compress_way: Vec<&str> = encoding.split(", ").collect();
+    let mut way = vec![];
+
+    for w in can_compress_way {
+        match w {
+            "gzip" => {
+                way.push(Compress::Gzip);
+            },
+            "deflate" => {
+                way.push(Compress::Deflate);
+            },
+            "br" => {
+                way.push(Compress::Br);
+            },
+            _ => {}
+        }
+    }
+
+    way
 
 }
 
@@ -374,10 +421,10 @@ fn get_last_string(path: &str) -> String {
 }
 
 
-struct Fallbacks (
-    Vec<u8>,
-    String
-);
+struct Fallbacks {
+    data: Vec<u8>,
+    ext: String
+}
 
 fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
 
@@ -390,7 +437,10 @@ fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
     for x in exts {
         let path = format!("{}.{}", file, x);
         if let Ok(data) = fs::read(&path) {
-            return Ok(Fallbacks(data, path));
+            return Ok(Fallbacks {
+                data,
+                ext: x.to_string()
+            });
         }
     }
 
