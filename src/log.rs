@@ -71,9 +71,8 @@ impl Log {
 
 #[test]
 fn test_log() {
-//    let log = Log::new("./logs/success.log", "./logs/error.log");
-//    log.success("hello world -- a");
-//    assert_eq!(true, false);
+    let log = Log::new("./logs/success.log", "./logs/error.log");
+    log.success("test");
 }
 
 

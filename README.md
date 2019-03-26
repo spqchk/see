@@ -57,6 +57,6 @@ Complete configuration file example:
 * [x] Async/response
 * [ ] Async/log `20%`
 * [x] HTTP Auth
-* [ ] Gzip
+* [ ] Compress `50%`
 * [ ] Proxy
 * [ ] HTTPS / HTTP2

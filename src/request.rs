@@ -1,7 +1,7 @@
 
 
-use std::collections::HashMap;
 extern crate percent_encoding;
+use std::collections::HashMap;
 use percent_encoding::percent_decode;
 
 
@@ -14,24 +14,28 @@ pub struct Request {
 
 
 fn split(buff: &Vec<u8>, split: Vec<u8>) -> Vec<Vec<u8>> {
-    let mut req: Vec<Vec<u8>> = vec![];
-    let buff_size = buff.len();
-    let size = split.len();
+    let mut result: Vec<Vec<u8>> = vec![];
+    let (buff_len, split_len) = (buff.len(), split.len());
     let mut find = 0;
     for (i, _) in buff.iter().enumerate() {
-        if i + size + 1 < buff_size {
-            let cur = &buff[i..i + size];
+        if buff_len - split_len >= i {
+            let cur = &buff[i..i + split_len];
             if cur == &split[..] {
-                let b: Vec<u8> = buff[find..i].iter().cloned().collect();
-                req.push(b);
-                find = i + size;
+                if find != i {
+                    let b: Vec<u8> = buff[find..i].iter().cloned().collect();
+                    result.push(b);
+                }
+                find = i + split_len;
             }
         }
     }
-    let end: Vec<u8> = buff[find..].iter().cloned().collect();
-    req.push(end);
-    req
+    if find != buff_len {
+        let end: Vec<u8> = buff[find..].iter().cloned().collect();
+        result.push(end);
+    }
+    result
 }
+
 
 impl Request {
 
@@ -74,14 +78,54 @@ impl Request {
 }
 
 
-#[test]
-fn test_parse_request() {
-    let buff = b"GET /abc?type=1 HTTP/1.1\r\nHost: 127.0.0.1\r\na: 1\r\n\r\n";
-    let req = Request::new(buff);
-    assert_eq!(&req.method, "GET");
-    assert_eq!(&req.path, "/abc");
-    assert_eq!(req.headers.get("host").unwrap().as_str(), "127.0.0.1");
-//    assert_eq!(req.headers.get("a").unwrap().as_str(), "1");
+#[cfg(test)]
+mod tests {
+
+    use crate::request::split;
+    use crate::Request;
+
+    #[test]
+    fn test_split() {
+        assert_eq!(
+            split(&vec![1, 2], vec![2]),
+            vec![vec![1]]
+        );
+        assert_eq!(
+            split(&vec![1, 2], vec![1]),
+            vec![vec![2]]
+        );
+        assert_eq!(
+            split(&vec![1, 2, 3], vec![2]),
+            vec![vec![1], vec![3]]
+        );
+        assert_eq!(
+            split(&vec![49, 50, 51, 52, 53], vec![51]),
+            vec![vec![49, 50], vec![52, 53]]
+        );
+        assert_eq!(
+            split(&vec![1, 2, 3, 4, 5, 6], vec![1, 2, 3, 4, 5, 6]),
+            Vec::<Vec<u8>>::new()
+        );
+    }
+
+    #[test]
+    fn test_parse_request() {
+        let buff = b"\
+            GET /abc?type=1 HTTP/1.1\r\n\
+            Host: 127.0.0.1\r\n\
+            Accept-Encoding: gzip, deflate, br\r\n\
+            a: 1\
+            \r\n\r\n\
+            hello world\
+        ";
+        let req = Request::new(buff);
+        assert_eq!(&req.method, "GET");
+        assert_eq!(&req.path, "/abc");
+        assert_eq!(req.headers.get("host").unwrap().as_str(), "127.0.0.1");
+        assert_eq!(req.headers.get("accept-encoding").unwrap().as_str(), "gzip, deflate, br");
+        assert_eq!(req.headers.get("a").unwrap().as_str(), "1");
+    }
+
 }
 
 

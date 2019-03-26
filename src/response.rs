@@ -176,37 +176,51 @@ impl Response {
 
         let mut top = String::from("");
         top.push_str(&res.line);
-        top.push_str(&res.header);
-        top.push_str("\r\n");
 
-        if &self.compress.len() != &0 {
-            let d = self.min(data);
-            [&top.as_bytes()[..], &d[..]].concat()
-        }else {
-            [&top.as_bytes()[..], &data[..]].concat()
+        if &res.compress.len() == &0 {
+            top.push_str(&res.header);
+            top.push_str("\r\n");
+            return [&top.as_bytes()[..], &data[..]].concat();
         }
 
-    }
+        let (min_data, way) = min(data, &res.compress);
+        match way {
+            Compress::Gzip => {
+                let d = &res.header("Content-Encoding", "gzip");
+                top.push_str(&d.header);
+                top.push_str("\r\n");
+                return [&top.as_bytes()[..], &min_data[..]].concat();
+            },
+            Compress::Deflate => {
+                let d = &res.header("Content-Encoding", "deflate");
+                top.push_str(&d.header);
+                top.push_str("\r\n");
+                return [&top.as_bytes()[..], &min_data[..]].concat();
+            },
+            _ => {
 
-    fn min(self, data: &[u8]) -> Vec<u8> {
-        for way in self.compress {
-            match way {
-                Compress::Gzip => {
-                    self.header("Content-Encoding", "gzip");
-                    return gzip(data);
-                },
-                Compress::Deflate => {
-                    self.header("Content-Encoding", "deflate");
-                    return deflate(data);
-                },
-                Compress::Br => {
-                    break;
-                }
             }
         }
-        return gzip(data);
+        [&top.as_bytes()[..], &min_data[..]].concat()
     }
 
+}
+
+fn min(data: &[u8], compress: &Vec<Compress>) -> (Vec<u8>, Compress) {
+    for way in compress {
+        match way {
+            Compress::Gzip => {
+                return (gzip(data), Compress::Gzip);
+            },
+            Compress::Deflate => {
+                return (deflate(data), Compress::Deflate);
+            },
+            Compress::Br => {
+                break;
+            }
+        }
+    }
+    return (gzip(data), Compress::Gzip);
 }
 
 fn gzip(data: &[u8]) -> Vec<u8> {

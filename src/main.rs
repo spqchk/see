@@ -160,6 +160,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
     if let None = allow {
         return Response::new(StatusCode::_405)
             .content_type("txt")
+            .headers(&config.headers)
             .body(b"405");
     }
 
@@ -167,6 +168,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
     if let None = request.headers.get("host") {
         return Response::new(StatusCode::_400)
             .content_type("txt")
+            .headers(&config.headers)
             .body(b"400");
     }
 
@@ -182,12 +184,14 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                 return Response::new(StatusCode::_401)
                     .content_type("")
                     .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
+                    .headers(&config.headers)
                     .body(b"401");
             }
         }else {
             return Response::new(StatusCode::_401)
                 .content_type("")
                 .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
+                .headers(&config.headers)
                 .body(b"401");
         }
     }
@@ -215,7 +219,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                                     .body(&data[..])
                             },
                             Err(_) => {
-                                return output_not_found(&config);
+                                return output_404(&config);
                             }
                         }
                     }
@@ -225,7 +229,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                             .headers(&config.headers)
                             .body(response_dir_html(&path, &request.path).as_bytes())
                     }
-                    return output_not_found(&config);
+                    return output_404(&config);
                 }else {
                     let moved = format!("{}/", request.path);
                     return Response::new(StatusCode::_301)
@@ -244,7 +248,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                             .body(&data[..])
                     },
                     Err(_) => {
-                        return output_error(&config);
+                        return output_500(&config);
                     }
                 }
             }
@@ -260,11 +264,11 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                             .body(&fallback.data);
                     },
                     Err(_) => {
-                        return output_not_found(&config);
+                        return output_404(&config);
                     }
                 }
             }else {
-                return output_not_found(&config);
+                return output_404(&config);
             }
         }
     };
@@ -330,12 +334,12 @@ pub fn fill_path(root: &str, file: &str) -> String {
 }
 
 
-fn output_not_found(config: &ServerConfig) -> Vec<u8> {
+fn output_404(config: &ServerConfig) -> Vec<u8> {
 
     let res = Response::new(StatusCode::_404)
         .headers(&config.headers);
 
-    if let Some(file) = &config.error.not_found {
+    if let Some(file) = &config.error._404 {
         match fs::read(&file) {
             Ok(data) => {
                 return res
@@ -357,12 +361,12 @@ fn output_not_found(config: &ServerConfig) -> Vec<u8> {
 }
 
 
-fn output_error(config: &ServerConfig) -> Vec<u8> {
+fn output_500(config: &ServerConfig) -> Vec<u8> {
 
     let res = Response::new(StatusCode::_500)
         .headers(&config.headers);
 
-    if let Some(file) = &config.error.error {
+    if let Some(file) = &config.error._500 {
         match fs::read(&file) {
             Ok(data) => {
                 return res

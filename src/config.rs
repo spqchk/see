@@ -16,7 +16,7 @@ pub struct ServerConfig {
     pub compress: Option<Vec<String>>,
     pub directory: bool,
     pub index: Option<String>,
-    pub headers: Vec<Header>,  // Option<Vec<Header>>
+    pub headers: Vec<Header>,
     pub extensions: Option<Vec<String>>,
     pub methods: Vec<String>,
     pub auth: Option<Auth>,
@@ -34,8 +34,8 @@ pub struct Header {
 // Error page
 #[derive(Debug, Default)]
 pub struct Error {
-    pub not_found: Option<String>,
-    pub error: Option<String>
+    pub _404: Option<String>,
+    pub _500: Option<String>
 }
 
 // HTTP auth
@@ -134,20 +134,14 @@ impl ServerConfig {
             };
 
             let headers = match &server["headers"].as_hash() {
-                Some(d) => {
+                Some(header) => {
                     let mut headers: Vec<Header> = vec![];
-                    for (key, value) in d.iter() {
-                        if let Some(k) = key.as_str() {
-                            if let Some(v) = value.as_str() {
-                                headers.push(Header {
-                                    key: k.to_string(),
-                                    value: v.to_string()
-                                })
-                            }else {
-                                continue
-                            }
-                        }else {
-                            continue
+                    for (key, value) in header.iter() {
+                        if let (Some(k), Some(v)) = (key.as_str(), value.as_str()){
+                            headers.push(Header {
+                                key: k.to_string(),
+                                value: v.to_string()
+                            })
                         }
                     }
                     headers
@@ -172,51 +166,52 @@ impl ServerConfig {
                 String::from("GET"),
                 String::from("HEAD"),
             ];
-            if let Some(d) = &server["methods"].as_vec() {
-                for item in d.iter() {
+            if let Some(vec) = &server["methods"].as_vec() {
+                for item in vec.iter() {
                     if let Some(method) = item.as_str() {
                         methods.push(method.to_string());
                     }
                 }
             }
 
-            let error_not_found = match &server["error"][404].as_str() {
+            let _404 = match &server["error"][404].as_str() {
                 Some(d) => Some(fill_path(&root, d)),
                 None => None
             };
 
-            let error_error = match &server["error"][500].as_str() {
+            let _500 = match &server["error"][500].as_str() {
                 Some(d) => Some(fill_path(&root, d)),
                 None => None
             };
 
-            let log_success = match &server["log"]["success"].as_str() {
+            let success = match &server["log"]["success"].as_str() {
                 Some(d) => Some(fill_path(&root, d)),
                 None => None
             };
 
-            let log_error = match &server["log"]["error"].as_str() {
+            let error = match &server["log"]["error"].as_str() {
                 Some(d) => Some(fill_path(&root, d)),
                 None => None
             };
 
-            let user = match &server["auth"]["user"].as_str() {
-                Some(d) => *d,
-                None => ""
-            }.to_string();
-
-            let password = match &server["auth"]["password"].as_str() {
-                Some(d) => *d,
-                None => ""
-            }.to_string();
-
-            let auth = if user == "" || password == "" {
-                None
-            }else {
-                Some(Auth {
-                    user,
-                    password
-                })
+            let auth = match &server["auth"].as_hash() {
+                Some(_) => {
+                    Some(Auth {
+                        user: match &server["auth"]["user"].as_str() {
+                            Some(d) => d.to_string(),
+                            None => {
+                                return Err(String::from("Missing 'user' in auth"));
+                            }
+                        },
+                        password: match &server["auth"]["password"].as_str() {
+                            Some(d) => d.to_string(),
+                            None => {
+                                return Err(String::from("Missing 'password' in auth"));
+                            }
+                        }
+                    })
+                },
+                None => None
             };
 
             let config = ServerConfig {
@@ -230,18 +225,17 @@ impl ServerConfig {
                 extensions,
                 methods,
                 error: Error {
-                    not_found: error_not_found,
-                    error: error_error
+                    _404,
+                    _500
                 },
                 log: Log {
-                    success: log_success,
-                    error: log_error
+                    success,
+                    error
                 },
                 auth
             };
 
-            let mut has = false;
-            let mut n = 0;
+            let (mut has, mut n) = (false, 0);
             for (i, items) in configs.iter().enumerate() {
                 if items[0].listen == listen {
                     has = true;
