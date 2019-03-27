@@ -27,7 +27,7 @@ mod log;
 fn main() {
 
     // Running in the background
-    if let Some(_) = get_arg(String::from("-d")) {
+    if get_arg_flag("-d") {
         let args: Vec<String> = env::args().collect();
         let child = Command::new(&args[0])
             .spawn().expect("Child process failed to start.");
@@ -35,7 +35,7 @@ fn main() {
         return;
     }
 
-    let mut config_path = match get_arg(String::from("-c")) {
+    let mut config_path = match get_arg_option("-c") {
         Some(p) => p,
         None => String::from("./sws.yml")
     };
@@ -70,24 +70,25 @@ fn main() {
 }
 
 
-fn get_arg(name: String) -> Option<String> {
-
+fn get_arg_option(arg: &str) -> Option<String> {
     let args: Vec<String> = env::args().collect();
-    let c = &args[1..];
-    let mut arg = "";
-
-    for (i, x) in c.iter().enumerate() {
-        if x == &name && c.len() - 1 > i {
-            arg = c[i + 1].as_str();
-            break;
+    for (i, x) in args.iter().enumerate() {
+        if arg == x && args.len() > i + 1 {
+            return Some(args[i + 1].to_string());
         }
     }
+    None
+}
 
-    match arg {
-        "" => None,
-        _ => Some(arg.to_string())
+
+fn get_arg_flag(flag: &str) -> bool {
+    let args: Vec<String> = env::args().collect();
+    for x in args.iter() {
+        if x == &flag {
+            return true;
+        }
     }
-
+    false
 }
 
 
