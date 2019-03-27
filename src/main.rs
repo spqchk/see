@@ -8,6 +8,7 @@ use std::fs;
 use std::env;
 use std::thread;
 use std::process;
+use std::process::Command;
 use std::path::Path;
 use std::io::prelude::*;
 use futures::executor::block_on;
@@ -24,6 +25,15 @@ mod log;
 
 
 fn main() {
+
+    // Running in the background
+    if let Some(_) = get_arg(String::from("-d")) {
+        let args: Vec<String> = env::args().collect();
+        let child = Command::new(&args[0])
+            .spawn().expect("Child process failed to start.");
+        println!("child pid: {}", child.id());
+        return;
+    }
 
     let mut config_path = match get_arg(String::from("-c")) {
         Some(p) => p,
