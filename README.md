@@ -50,13 +50,8 @@ Complete configuration file example:
 
 ## Todo
 
-* [x] Custom header
-* [x] Extensions
-* [ ] Parse request `50%`
-* [x] Custom error
-* [x] Async/response
-* [ ] Async/log `20%`
-* [x] HTTP Auth
+* [ ] Async/response
+* [ ] Async/log
 * [ ] Compress `50%`
 * [ ] Proxy
 * [ ] HTTPS / HTTP2

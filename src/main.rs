@@ -2,7 +2,7 @@
 #![feature(async_await)]
 
 extern crate base64;
-use base64::{encode, decode};
+use base64::decode;
 use std::u8;
 use std::fs;
 use std::env;

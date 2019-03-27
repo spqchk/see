@@ -4,7 +4,7 @@ extern crate yaml_rust;
 use yaml_rust::{YamlLoader};
 use std::fs;
 use std::result::Result;
-use crate::log::{Log as Da};
+use crate::log::Log;
 use crate::fill_path;
 
 // Configuration of each service
@@ -21,7 +21,7 @@ pub struct ServerConfig {
     pub methods: Vec<String>,
     pub auth: Option<Auth>,
     pub error: Error,
-    pub log: Log
+    pub log: Recording
 }
 
 // Header -> key: value
@@ -47,9 +47,9 @@ pub struct Auth {
 
 // Log path
 #[derive(Debug, Default)]
-pub struct Log {
-    pub success: Option<String>,
-    pub error: Option<String>
+pub struct Recording {
+    pub success: Option<Log>,
+    pub error: Option<Log>
 }
 
 
@@ -185,12 +185,12 @@ impl ServerConfig {
             };
 
             let success = match &server["log"]["success"].as_str() {
-                Some(d) => Some(fill_path(&root, d)),
+                Some(d) => Some(Log::new(fill_path(&root, d))),
                 None => None
             };
 
             let error = match &server["log"]["error"].as_str() {
-                Some(d) => Some(fill_path(&root, d)),
+                Some(d) => Some(Log::new(fill_path(&root, d))),
                 None => None
             };
 
@@ -228,7 +228,7 @@ impl ServerConfig {
                     _404,
                     _500
                 },
-                log: Log {
+                log: Recording {
                     success,
                     error
                 },

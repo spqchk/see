@@ -1,25 +1,23 @@
 
 
+extern crate chrono;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
 use std::fs;
-use yaml_rust::yaml::Yaml::Null;
-use futures::executor::block_on;
-use std::thread;
-use std::time::Duration;
+use chrono::{DateTime, prelude, Local};
+
 
 #[derive(Debug)]
 pub struct Log {
-    success: Option<File>,
-    error: Option<File>
+    pub file: File
 }
 
 
-fn create_log_file(path: &str) -> File {
+fn create_log_file(path: String) -> File {
     let log_file = fs::metadata(&path);
-    if let Err(log_file) = log_file {
+    if let Err(_) = log_file {
         let p = Path::new(&path);
         let dir = &p.parent().unwrap();
         fs::create_dir_all(dir).unwrap();
@@ -35,34 +33,16 @@ fn create_log_file(path: &str) -> File {
 
 impl Log {
 
-    fn new(success: &str, error: &str) -> Log {
+    pub fn new(path: String) -> Log {
         Log {
-            success: if success == "" {
-                None
-            }else {
-                Some(create_log_file(success))
-            },
-            error: if error == "" {
-                None
-            }else {
-                Some(create_log_file(error))
-            }
+            file: create_log_file(path)
         }
     }
 
-    fn success(self, text: &str) {
-        let sync = self.write(text);
-        block_on(sync);
-    }
-
-    async fn write(self, text: &str) {
-        if let Some(file) = self.success {
-//            thread::sleep(Duration::from_secs(5));
-            if let Err(e) = writeln!(&file, "{}", &text) {
-                eprintln!("Couldn't write to file: {}", e);
-            }else {
-                println!("写入完成");
-            }
+    pub fn write(&self, method: &str, status: i32, path: &str) {
+        let time: DateTime<Local> = prelude::Local::now();
+        if let Err(e) = writeln!(&self.file, "{0}  {1: <6}  {2}  {3}", time, method, status, path) {
+            eprintln!("Couldn't write to file: {}", e);
         }
     }
 
@@ -71,8 +51,10 @@ impl Log {
 
 #[test]
 fn test_log() {
-    let log = Log::new("./logs/success.log", "./logs/error.log");
-    log.success("test");
+    let log = Log::new("./logs/success.log".to_string());
+    log.write("GET", 200, "/api");
+    log.write("HEAD", 404, "/img");
+    log.write("DELETE", 500, "/img");
 }
 
 

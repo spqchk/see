@@ -5,7 +5,7 @@ use crate::config::Header;
 use std::io::Write;
 use libflate::gzip;
 use libflate::deflate;
-use libflate::zlib;
+//use libflate::zlib;
 
 #[derive(Default)]
 pub struct Response {
