@@ -26,12 +26,47 @@ mod log;
 
 fn main() {
 
-    // Running in the background
-    if get_arg_flag("-d") {
-        let args: Vec<String> = env::args().collect();
-        let child = Command::new(&args[0])
-            .spawn().expect("Child process failed to start.");
-        println!("child pid: {}", child.id());
+    //  Print help information
+    if get_arg_flag("-h") || get_arg_flag("help") {
+        println!(r#"{0} version {1}
+{2}
+
+USAGE:
+    {0} [FLAGS] [OPTIONS] [--] [target]...
+
+FLAGS:
+    -c                  Specify a configuration file
+    -d                  Running in the background
+    -t                  Check the config file for errors
+    -h, help            Print help information
+    -v, version         Print version number
+
+OPTIONS:
+    --host              Domain name to be bound
+    --listen            Port to be monitored
+    --root              Directory that requires service
+    --index             Index file
+    --directory         Whether to display the file list
+    --auth              Http user and password verification
+    --extensions        Sets file extension fallbacks
+    --log               Log save location
+"#,
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION"),
+            env!("CARGO_PKG_AUTHORS")
+        );
+        return;
+    }
+
+    // Print version number
+    if get_arg_flag("-v") || get_arg_flag("version") {
+        println!("{} version {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
+    // Check configuration file
+    if get_arg_flag("-t") {
+        println!("Not working");
         return;
     }
 
@@ -55,6 +90,15 @@ fn main() {
             process::exit(1);
         }
     };
+
+    // Running in the background
+    if get_arg_flag("-d") {
+        let args: Vec<String> = env::args().collect();
+        let child = Command::new(&args[0])
+            .spawn().expect("Child process failed to start.");
+        println!("child pid: {}", child.id());
+        return;
+    }
 
     let mut wait = vec![];
     for config in configs {
