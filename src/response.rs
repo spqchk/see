@@ -2,13 +2,16 @@
 
 extern crate libflate;
 use crate::config::Header;
+use std::collections::HashMap;
 use std::io::{Write};
 use libflate::gzip;
 
 #[derive(Default)]
 pub struct Response {
-    line: String,
-    header: String,
+    version: String,
+    status: i32,
+    header: HashMap<String, String>,
+    body: Vec<u8>,
     gzip: bool
 }
 
@@ -31,18 +34,21 @@ impl Response {
 
         let mut response = Response::default();
 
-        response.line = match status {
-            StatusCode::_200 => String::from("HTTP/1.1 200 OK\r\n"),
-            StatusCode::_400 => String::from("HTTP/1.1 400\r\n"),
-            StatusCode::_301 => String::from("HTTP/1.1 301\r\n"),
-            StatusCode::_401 => String::from("HTTP/1.1 401\r\n"),
-            StatusCode::_404 => String::from("HTTP/1.1 404\r\n"),
-            StatusCode::_405 => String::from("HTTP/1.1 405\r\n"),
-            StatusCode::_500 => String::from("HTTP/1.1 500\r\n")
+        response.version = String::from("HTTP/1.1");
+
+        response.status = match status {
+            StatusCode::_200 => 200,
+            StatusCode::_400 => 400,
+            StatusCode::_301 => 301,
+            StatusCode::_401 => 401,
+            StatusCode::_404 => 404,
+            StatusCode::_405 => 405,
+            StatusCode::_500 => 500
         };
 
         // Add service name
-        response.header += &format!("Server: {}\r\n", SERVER_NAME);
+        response.header.insert(String::from("Server"), SERVER_NAME.to_string());
+
         response
 
     }
@@ -50,14 +56,9 @@ impl Response {
     // Set header
     pub fn header(mut self, key: &str, value:  &str) -> Response {
 
-        self.header += key;
-        self.header += ": ";
-        self.header += value;
-        self.header += "\r\n";
+        self.header.insert(key.to_string(), value.to_string());
 
-        Response {
-            ..self
-        }
+        self
 
     }
 
@@ -65,20 +66,15 @@ impl Response {
     pub fn headers(mut self, headers: &Vec<Header>) -> Response {
 
         for header in headers {
-            self.header += &header.key;
-            self.header += ": ";
-            self.header += &header.value;
-            self.header += "\r\n";
+            self.header.insert(header.key.to_string(), header.value.to_string());
         }
 
-        Response {
-            ..self
-        }
+        self
 
     }
 
     // Set the content-type based on the file extension
-    pub fn content_type(self, ext: &str) -> Response {
+    pub fn content_type(mut self, ext: &str) -> Response {
 
         let value = match &ext.as_ref() {
             &"aac" => "audio/aac",
@@ -151,38 +147,43 @@ impl Response {
             _ => "application/octet-stream"
         };
 
-        self.header("Content-Type", value)
+        self.header.insert("Content-Type".to_string(), value.to_string());
+        self
 
     }
 
-    pub fn gzip(self, open: bool) -> Response {
-        Response {
-            gzip: open,
-            ..self
-        }
+    pub fn gzip(mut self, open: bool) -> Response {
+
+        self.gzip = open;
+        self
+
     }
 
     // Build a complete response
-    pub fn body(self, data: &[u8]) -> Vec<u8> {
+    pub fn body(mut self, data: &[u8]) -> Vec<u8> {
 
-        let res = self.header("Content-Length", &data.len().to_string());
-
-        let mut top = String::from("");
-        top.push_str(&res.line);
-
-        if !res.gzip {
-            top.push_str(&res.header);
-            top.push_str("\r\n");
-            return [&top.as_bytes()[..], &data[..]].concat();
+        if self.gzip {
+            self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
+            self.body = gzip_min(data);
+            self.header.insert("Content-Length".to_string(), self.body.len().to_string());
+        }else {
+            self.body = data[..].iter().cloned().collect();
+            self.header.insert("Content-Length".to_string(), data.len().to_string());
         }
 
-        // gzip
-        let gzip_data = gzip_min(data);
+        let mut res = String::from("");
 
-        let d = &res.header("Content-Encoding", "gzip");
-        top.push_str(&d.header);
-        top.push_str("\r\n");
-        return [&top.as_bytes()[..], &gzip_data[..]].concat()
+        res.push_str(&self.version);
+        res.push_str(&format!(" {}\r\n", &self.status.to_string()));
+        for (key, value) in self.header.iter() {
+            res.push_str(key);
+            res.push_str(": ");
+            res.push_str(value);
+            res.push_str("\r\n");
+        }
+        res.push_str("\r\n");
+
+        [&res.as_bytes()[..], &self.body[..]].concat()
 
     }
 
