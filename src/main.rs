@@ -1,5 +1,4 @@
-#![feature(futures_api)]
-#![feature(async_await)]
+
 
 extern crate base64;
 use base64::decode;
@@ -11,10 +10,9 @@ use std::process;
 use std::process::Command;
 use std::path::Path;
 use std::io::prelude::*;
-use futures::executor::block_on;
 use std::net::{TcpStream, TcpListener};
 mod response;
-use response::{StatusCode, Compress, Response};
+use response::{StatusCode, Response};
 mod request;
 use request::Request;
 mod html;
@@ -72,7 +70,7 @@ OPTIONS:
 
     let mut config_path = match get_arg_option("-c") {
         Some(p) => p,
-        None => String::from("./sws.yml")
+        None => String::from("./rock.yml")
     };
 
     let config_buf = env::current_dir()
@@ -86,7 +84,7 @@ OPTIONS:
     let configs = match ServerConfig::new(config_path) {
         Ok(config) => config,
         Err(msg) => {
-            eprintln!("\x1b[31msws: {}\x1b[0m", msg);
+            eprintln!("\x1b[31m{}: {}\x1b[0m", env!("CARGO_PKG_NAME"), msg);
             process::exit(1);
         }
     };
@@ -156,15 +154,14 @@ fn bind_tcp(config: Vec<ServerConfig>) {
 
     for stream in server.incoming() {
         if let Ok(stream) = stream {
-            let future = handle_connection(stream, &config);
-            block_on(future);
+            handle_connection(stream, &config);
         }
     }
 
 }
 
 
-async fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
+fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
 
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
@@ -213,6 +210,9 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
         return **item == request.method;
     });
     if let None = allow {
+        if let Some(log) = &config.log.error {
+            log.write(&request.method, 405, &request.path);
+        }
         return Response::new(StatusCode::_405)
             .content_type("txt")
             .headers(&config.headers)
@@ -221,6 +221,9 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
 
     // A Host header field must be sent in all HTTP/1.1 request messages
     if let None = request.headers.get("host") {
+        if let Some(log) = &config.log.error {
+            log.write(&request.method, 400, &request.path);
+        }
         return Response::new(StatusCode::_400)
             .content_type("txt")
             .headers(&config.headers)
@@ -236,6 +239,9 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             let base64 = value.replacen("Basic ", "", 1);
             let base64_bytes = decode(&base64).unwrap();
             if config_auth.as_bytes() != base64_bytes.as_slice() {
+                if let Some(log) = &config.log.error {
+                    log.write(&request.method, 401, &request.path);
+                }
                 return Response::new(StatusCode::_401)
                     .content_type("")
                     .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
@@ -243,6 +249,9 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                     .body(b"401");
             }
         }else {
+            if let Some(log) = &config.log.error {
+                log.write(&request.method, 401, &request.path);
+            }
             return Response::new(StatusCode::_401)
                 .content_type("")
                 .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
@@ -266,26 +275,41 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                         let index_path = fill_path(&path, &index);
                         match fs::read(index_path) {
                             Ok(data) => {
+                                if let Some(log) = &config.log.success {
+                                    log.write(&request.method, 200, &request.path);
+                                }
                                 let ext = get_extension(index);
                                 return Response::new(StatusCode::_200)
                                     .content_type(ext)
                                     .headers(&config.headers)
-                                    .compress(compress(&request, &config, &ext))
+                                    .gzip(can_use_gzip(&request, &config, &ext))
                                     .body(&data[..])
                             },
                             Err(_) => {
+                                if let Some(log) = &config.log.error {
+                                    log.write(&request.method, 404, &request.path);
+                                }
                                 return output_404(&config);
                             }
                         }
                     }
                     if config.directory {
+                        if let Some(log) = &config.log.success {
+                            log.write(&request.method, 200, &request.path);
+                        }
                         return Response::new(StatusCode::_200)
                             .content_type("html")
                             .headers(&config.headers)
                             .body(response_dir_html(&path, &request.path).as_bytes())
                     }
+                    if let Some(log) = &config.log.error {
+                        log.write(&request.method, 404, &request.path);
+                    }
                     return output_404(&config);
                 }else {
+                    if let Some(log) = &config.log.success {
+                        log.write(&request.method, 301, &request.path);
+                    }
                     let moved = format!("{}/", request.path);
                     return Response::new(StatusCode::_301)
                         .header("location", &moved)
@@ -295,14 +319,20 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             }else {
                 match fs::read(&path) {
                     Ok(data) => {
+                        if let Some(log) = &config.log.success {
+                            log.write(&request.method, 200, &request.path);
+                        }
                         let ext = get_extension(&path);
                         return Response::new(StatusCode::_200)
                             .content_type(&ext)
                             .headers(&config.headers)
-                            .compress(compress(&request, &config, &ext))
+                            .gzip(can_use_gzip(&request, &config, &ext))
                             .body(&data[..])
                     },
                     Err(_) => {
+                        if let Some(log) = &config.log.error {
+                            log.write(&request.method, 500, &request.path);
+                        }
                         return output_500(&config);
                     }
                 }
@@ -312,17 +342,26 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
             if let Some(exts) = &config.extensions {
                 match fallbacks(&path, exts) {
                     Ok(fallback) => {
+                        if let Some(log) = &config.log.success {
+                            log.write(&request.method, 200, &request.path);
+                        }
                         return Response::new(StatusCode::_200)
                             .content_type(&fallback.ext)
                             .headers(&config.headers)
-                            .compress(compress(&request, &config, &fallback.ext))
+                            .gzip(can_use_gzip(&request, &config, &fallback.ext))
                             .body(&fallback.data);
                     },
                     Err(_) => {
+                        if let Some(log) = &config.log.error {
+                            log.write(&request.method, 404, &request.path);
+                        }
                         return output_404(&config);
                     }
                 }
             }else {
+                if let Some(log) = &config.log.error {
+                    log.write(&request.method, 404, &request.path);
+                }
                 return output_404(&config);
             }
         }
@@ -331,44 +370,33 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
 }
 
 
-fn compress(request: &Request, config: &ServerConfig, ext: &str) -> Vec<Compress> {
+fn can_use_gzip(request: &Request, config: &ServerConfig, ext: &str) -> bool {
 
-    if let Some(exts) = &config.compress {
+    if let Some(exts) = &config.gzip {
         let allow = exts.iter().find(|item| {
             return *item == ext
         });
         if let None = allow {
-            return vec![]
+            return false
         }
     }else {
-        return vec![]
+        return false
     }
 
     let encoding = if let Some(val) = request.headers.get("accept-encoding") {
         val
     }else {
-        return vec![]
+        return false
     };
 
-    let can_compress_way: Vec<&str> = encoding.split(", ").collect();
-    let mut way = vec![];
-
-    for w in can_compress_way {
-        match w {
-            "gzip" => {
-                way.push(Compress::Gzip);
-            },
-            "deflate" => {
-                way.push(Compress::Deflate);
-            },
-            "br" => {
-                way.push(Compress::Br);
-            },
-            _ => {}
+    let ways: Vec<&str> = encoding.split(", ").collect();
+    for way in ways {
+        if way == "gzip" {
+            return true
         }
     }
 
-    way
+    return false
 
 }
 
@@ -508,7 +536,7 @@ fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
 }
 
 
-fn response_dir_html(path: &str, title: &String) -> String {
+fn response_dir_html(path: &str, title: &str) -> String {
 
     let dir = match fs::read_dir(path) {
         Ok(dir) => dir,

@@ -1,7 +1,7 @@
 
-# sws [![Build Status](https://img.shields.io/travis/wyhaya/sws.svg?style=flat-square)](https://travis-ci.org/wyhaya/sws)
+# rock [![Build Status](https://img.shields.io/travis/wyhaya/rock.svg?style=flat-square)](https://travis-ci.org/wyhaya/rock)
 
-sws is a static web server, developed using rust.
+rock is a static web server, developed using rust.
 
 ## Features
 
@@ -13,7 +13,7 @@ cargo +nightly run
 
 ## Config
 
-Use `yaml` format as a configuration file, You can use `sws -c /your/config.yml` to specify the configuration file location.
+Use `yaml` format as a configuration file, You can use `rock -c /your/config.yml` to specify the configuration file location.
 
 Complete configuration file example: 
 
@@ -27,7 +27,7 @@ Complete configuration file example:
     headers:              # Header in response
       Access-Control-Allow-Origin: *
       Set-Cookie: 12345
-    compress:             # File type that needs to be compressed
+    gzip:                 # File type that needs to be compressed
       - html
       - css
     methods:              # Method of allowing requests

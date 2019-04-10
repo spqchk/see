@@ -2,16 +2,14 @@
 
 extern crate libflate;
 use crate::config::Header;
-use std::io::Write;
+use std::io::{Write};
 use libflate::gzip;
-use libflate::deflate;
-//use libflate::zlib;
 
 #[derive(Default)]
 pub struct Response {
     line: String,
     header: String,
-    compress: Vec<Compress>
+    gzip: bool
 }
 
 pub enum StatusCode {
@@ -24,12 +22,7 @@ pub enum StatusCode {
     _500
 }
 
-#[derive(Debug)]
-pub enum Compress {
-    Gzip,
-    Deflate,
-    Br
-}
+const SERVER_NAME: &str = env!("CARGO_PKG_NAME");
 
 impl Response {
 
@@ -49,7 +42,7 @@ impl Response {
         };
 
         // Add service name
-        response.header += "Server: sws\r\n";
+        response.header += &format!("Server: {}\r\n", SERVER_NAME);
         response
 
     }
@@ -162,9 +155,9 @@ impl Response {
 
     }
 
-    pub fn compress(self, way: Vec<Compress>) -> Response {
+    pub fn gzip(self, open: bool) -> Response {
         Response {
-            compress: way,
+            gzip: open,
             ..self
         }
     }
@@ -177,61 +170,28 @@ impl Response {
         let mut top = String::from("");
         top.push_str(&res.line);
 
-        if &res.compress.len() == &0 {
+        if !res.gzip {
             top.push_str(&res.header);
             top.push_str("\r\n");
             return [&top.as_bytes()[..], &data[..]].concat();
         }
 
-        let (min_data, way) = min(data, &res.compress);
-        match way {
-            Compress::Gzip => {
-                let d = &res.header("Content-Encoding", "gzip");
-                top.push_str(&d.header);
-                top.push_str("\r\n");
-                return [&top.as_bytes()[..], &min_data[..]].concat();
-            },
-            Compress::Deflate => {
-                let d = &res.header("Content-Encoding", "deflate");
-                top.push_str(&d.header);
-                top.push_str("\r\n");
-                return [&top.as_bytes()[..], &min_data[..]].concat();
-            },
-            _ => {
+        // gzip
+        let gzip_data = gzip_min(data);
 
-            }
-        }
-        [&top.as_bytes()[..], &min_data[..]].concat()
+        let d = &res.header("Content-Encoding", "gzip");
+        top.push_str(&d.header);
+        top.push_str("\r\n");
+        return [&top.as_bytes()[..], &gzip_data[..]].concat()
+
     }
 
 }
 
-fn min(data: &[u8], compress: &Vec<Compress>) -> (Vec<u8>, Compress) {
-    for way in compress {
-        match way {
-            Compress::Gzip => {
-                return (gzip(data), Compress::Gzip);
-            },
-            Compress::Deflate => {
-                return (deflate(data), Compress::Deflate);
-            },
-            Compress::Br => {
-                break;
-            }
-        }
-    }
-    return (gzip(data), Compress::Gzip);
-}
 
-fn gzip(data: &[u8]) -> Vec<u8> {
+fn gzip_min(data: &[u8]) -> Vec<u8> {
     let mut encoder = gzip::Encoder::new(Vec::new()).unwrap();
     encoder.write_all(data).unwrap();
-    encoder.finish().into_result().unwrap()
-}
-
-fn deflate(data: &[u8]) -> Vec<u8> {
-    let mut encoder = deflate::Encoder::new(Vec::new());
-    encoder.write_all(&data).unwrap();
     encoder.finish().into_result().unwrap()
 }
 

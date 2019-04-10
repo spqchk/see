@@ -1,11 +1,12 @@
 
 
 extern crate yaml_rust;
-use yaml_rust::{YamlLoader};
-use std::fs;
-use std::result::Result;
 use crate::log::Log;
 use crate::fill_path;
+use std::fs;
+use std::result::Result;
+use yaml_rust::{YamlLoader};
+
 
 // Configuration of each service
 #[derive(Debug, Default)]
@@ -13,7 +14,7 @@ pub struct ServerConfig {
     pub host: Option<String>,
     pub listen: i64,
     pub root: String,
-    pub compress: Option<Vec<String>>,
+    pub gzip: Option<Vec<String>>,
     pub directory: bool,
     pub index: Option<String>,
     pub headers: Vec<Header>,
@@ -110,7 +111,7 @@ impl ServerConfig {
                 }
             };
 
-            let compress = match &server["compress"].as_vec() {
+            let gzip = match &server["gzip"].as_vec() {
                 Some(extensions) => {
                     let mut vec: Vec<String> = vec![];
                     for item in extensions.iter() {
@@ -218,7 +219,7 @@ impl ServerConfig {
                 host,
                 listen,
                 root,
-                compress,
+                gzip,
                 directory,
                 index,
                 headers,

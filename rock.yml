@@ -1,0 +1,20 @@
+
+
+- server:
+    host: 127.0.0.1
+    listen: 80
+    root: ./www
+    gzip:
+      - html
+      - css
+      - js
+    directory: true
+    log:
+      error: ./logs/error.log
+      success: ./logs/success.log
+
+ - server:
+     host: 127.0.0.1
+     listen: 1234
+     root: ./
+

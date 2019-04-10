@@ -6,7 +6,7 @@ pub const TEMPLATE: &'static str = r#"<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>sws</title>
+    <title>Index of {title}</title>
     <style>
         body {
             font-family: microsoft yahei, "Helvetica Neue", "pingfang sc";
