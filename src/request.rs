@@ -82,7 +82,7 @@ impl Request {
 mod tests {
 
     use crate::request::split;
-    use crate::Request;
+    use crate::request::Request;
 
     #[test]
     fn test_split() {

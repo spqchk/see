@@ -3,12 +3,12 @@
 extern crate libflate;
 use crate::config::Header;
 use std::collections::HashMap;
-use std::io::{Write};
+use std::io::Write;
 use libflate::gzip;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Response {
-    version: String,
+    version: &'static str,
     status: i32,
     header: HashMap<String, String>,
     body: Vec<u8>,
@@ -34,7 +34,7 @@ impl Response {
 
         let mut response = Response::default();
 
-        response.version = String::from("HTTP/1.1");
+        response.version = "HTTP/1.1";
 
         response.status = match status {
             StatusCode::_200 => 200,
@@ -163,18 +163,21 @@ impl Response {
     pub fn body(mut self, data: &[u8]) -> Vec<u8> {
 
         if self.gzip {
-            self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
-            self.body = gzip_min(data);
-            self.header.insert("Content-Length".to_string(), self.body.len().to_string());
+            if let Ok(d) = gzip_min(data) {
+                self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
+                self.body = d;
+            }else {
+                self.body = data[..].iter().cloned().collect();
+            }
         }else {
             self.body = data[..].iter().cloned().collect();
-            self.header.insert("Content-Length".to_string(), data.len().to_string());
         }
+        self.header.insert("Content-Length".to_string(), self.body.len().to_string());
 
         let mut res = String::from("");
 
-        res.push_str(&self.version);
-        res.push_str(&format!(" {}\r\n", &self.status.to_string()));
+        res.push_str(self.version);
+        res.push_str(&format!(" {}\r\n", self.status));
         for (key, value) in self.header.iter() {
             res.push_str(key);
             res.push_str(": ");
@@ -190,9 +193,37 @@ impl Response {
 }
 
 
-fn gzip_min(data: &[u8]) -> Vec<u8> {
-    let mut encoder = gzip::Encoder::new(Vec::new()).unwrap();
-    encoder.write_all(data).unwrap();
-    encoder.finish().into_result().unwrap()
+fn gzip_min(data: &[u8]) -> Result<Vec<u8>, ()> {
+    let mut encoder = match gzip::Encoder::new(Vec::new()) {
+        Ok(encoder) => encoder,
+        Err(_) => {
+            return Err(());
+        }
+    };
+    if let Err(_) = encoder.write_all(data) {
+        return Err(());
+    }
+    if let Ok(min) = encoder.finish().into_result() {
+        Ok(min)
+    }else {
+        Err(())
+    }
 }
+
+
+//#[cfg(test)]
+//mod tests {
+//
+//    use crate::response::Response;
+//    use crate::response::StatusCode;
+//    use crate::response::gzip_min;
+//
+//    #[test]
+//    fn test_build_response() {
+//        let res = Response::new(StatusCode::_200)
+//            .header("hello", "world")
+//            .body(b"200");
+//    }
+//
+//}
 

@@ -3,7 +3,7 @@
 extern crate base64;
 use base64::decode;
 use std::u8;
-use std::fs;
+use std::{fs, fs::File};
 use std::env;
 use std::thread;
 use std::process;
@@ -22,55 +22,51 @@ use config::ServerConfig;
 mod log;
 
 
+#[cfg(target_os = "macos")]
+static PID_PATH: &str = "/usr/local/var/run/rock.pid";
+#[cfg(target_os = "linux")]
+static PID_PATH: &str = "/var/run/rock.pid";
+#[cfg(target_os = "windows")]
+static PID_PATH: &str = "";
+
+
 fn main() {
 
     //  Print help information
     if get_arg_flag("-h") || get_arg_flag("help") {
-        println!(r#"{0} version {1}
+        return println!(r#"{0} version {1}
 {2}
 
 USAGE:
-    {0} [FLAGS] [OPTIONS] [--] [target]...
+    {0} [FLAGS] [--] [target]...
 
 FLAGS:
     -c                  Specify a configuration file
     -d                  Running in the background
-    -t                  Check the config file for errors
     -h, help            Print help information
+    -s, stop            Stop the daemon
+    -t                  Check the config file for errors
     -v, version         Print version number
-
-OPTIONS:
-    --host              Domain name to be bound
-    --listen            Port to be monitored
-    --root              Directory that requires service
-    --index             Index file
-    --directory         Whether to display the file list
-    --auth              Http user and password verification
-    --extensions        Sets file extension fallbacks
-    --log               Log save location
 "#,
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),
             env!("CARGO_PKG_AUTHORS")
         );
-        return;
     }
 
     // Print version number
     if get_arg_flag("-v") || get_arg_flag("version") {
-        println!("{} version {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-        return;
+        return println!("{} version {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     }
 
-    // Check configuration file
-    if get_arg_flag("-t") {
-        println!("Not working");
-        return;
+    // Stop the daemon
+    if get_arg_flag("-s") || get_arg_flag("stop") {
+        return stop_daemon();
     }
 
     let mut config_path = match get_arg_option("-c") {
         Some(p) => p,
-        None => String::from("./rock.yml")
+        None => String::from("rock.yml")
     };
 
     let config_buf = env::current_dir()
@@ -81,21 +77,22 @@ OPTIONS:
 
     config_path = fill_path(root, &config_path);
 
-    let configs = match ServerConfig::new(config_path) {
+    let configs = match ServerConfig::new(&config_path) {
         Ok(config) => config,
         Err(msg) => {
-            eprintln!("\x1b[31m{}: {}\x1b[0m", env!("CARGO_PKG_NAME"), msg);
+            eprintln!("{}", msg);
             process::exit(1);
         }
     };
 
+    // Check configuration file
+    if get_arg_flag("-t") {
+        return println!("the configuration file {} syntax is ok", config_path);
+    }
+
     // Running in the background
     if get_arg_flag("-d") {
-        let args: Vec<String> = env::args().collect();
-        let child = Command::new(&args[0])
-            .spawn().expect("Child process failed to start.");
-        println!("child pid: {}", child.id());
-        return;
+        return start_daemon();
     }
 
     let mut wait = vec![];
@@ -134,6 +131,51 @@ fn get_arg_flag(flag: &str) -> bool {
 }
 
 
+fn start_daemon() {
+    let args: Vec<String> = env::args().collect();
+    let args: Vec<String> = args.iter().filter(|item| *item != "-d").cloned().collect();
+    let child = Command::new(&args[0])
+        .args(&args[1..])
+        .spawn();
+    match child {
+        Ok(child) => {
+            let mut pid = File::create(PID_PATH)
+                .unwrap();
+            write!(pid, "{}", child.id()).unwrap();
+        },
+        Err(e) => {
+            eprintln!("{}", e);
+        }
+    }
+}
+
+
+fn stop_daemon() {
+    match fs::read_to_string(PID_PATH) {
+        Ok(pid) => {
+            let kill = Command::new("kill")
+                .arg(pid)
+                .status();
+            match kill {
+                Ok(status) => {
+                    if status.success() {
+                        if let Err(e) = fs::remove_file(PID_PATH) {
+                            eprintln!("{}", e);
+                        }
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}", e);
+                }
+            }
+        },
+        Err(e) => {
+            eprintln!("open \"{}\" failed, {:?}", PID_PATH, e.to_string());
+        }
+    }
+}
+
+
 fn bind_tcp(config: Vec<ServerConfig>) {
 
     let listen = &config[0].listen;
@@ -141,18 +183,12 @@ fn bind_tcp(config: Vec<ServerConfig>) {
     let listener = TcpListener::bind(&address);
 
     if let Err(listener) = listener {
-        println!("{:?}", listener);
-        println!("Binding {} failed.", &address);
+        eprintln!("{:?}", listener);
+        eprintln!("Binding {} failed", address);
         process::exit(1);
-    }else {
-        println!("Binding {} success.", &address);
     }
 
-    let server = listener.unwrap();
-
-    //    server.set_nonblocking(true)
-
-    for stream in server.incoming() {
+    for stream in listener.unwrap().incoming() {
         if let Ok(stream) = stream {
             handle_connection(stream, &config);
         }

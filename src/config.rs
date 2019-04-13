@@ -57,12 +57,12 @@ pub struct Recording {
 impl ServerConfig {
 
     // The same port service is a group
-    pub fn new(path: String) -> Result<Vec<Vec<ServerConfig>>, String>  {
+    pub fn new(path: &str) -> Result<Vec<Vec<ServerConfig>>, String>  {
 
         let content = match fs::read_to_string(&path) {
             Ok(content) => content,
             Err(err) => {
-                return Err(err.to_string());
+                return Err(format!("{} {}", path, err));
             }
         };
 
