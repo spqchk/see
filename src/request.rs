@@ -19,19 +19,17 @@ fn split(buff: &Vec<u8>, split: Vec<u8>) -> Vec<Vec<u8>> {
     let mut find = 0;
     for (i, _) in buff.iter().enumerate() {
         if buff_len - split_len >= i {
-            let cur = &buff[i..i + split_len];
-            if cur == &split[..] {
+            let cur = buff[i..i + split_len].to_vec();
+            if cur == split {
                 if find != i {
-                    let b: Vec<u8> = buff[find..i].iter().cloned().collect();
-                    result.push(b);
+                    result.push(buff[find..i].to_vec());
                 }
                 find = i + split_len;
             }
         }
     }
     if find != buff_len {
-        let end: Vec<u8> = buff[find..].iter().cloned().collect();
-        result.push(end);
+        result.push(buff[find..].to_vec());
     }
     result
 }
@@ -41,8 +39,7 @@ impl Request {
 
     pub fn new(buff: &[u8]) -> Request {
 
-        let buff: Vec<u8> = buff.iter().cloned().collect();
-        let req = split(&buff, vec![13, 10]);
+        let req = split(&buff.to_vec(), vec![13, 10]);
         let line = split(&req[0], vec![32]);
         let method = String::from_utf8_lossy(&line[0]).to_string();
         let full_path = split(&line[1], vec![63]);

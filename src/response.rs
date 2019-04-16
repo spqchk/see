@@ -3,7 +3,8 @@
 extern crate libflate;
 use crate::config::Header;
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::Write as IoWrite;
+use std::fmt::Write as FmtWrite;
 use libflate::gzip;
 
 #[derive(Default, Debug)]
@@ -174,16 +175,14 @@ impl Response {
         }
         self.header.insert("Content-Length".to_string(), self.body.len().to_string());
 
-        let mut res = String::from("");
+        let mut res = String::new();
 
-        res.push_str(self.version);
-        res.push_str(&format!(" {}\r\n", self.status));
+        let _ = write!(res, "{} {}\r\n", self.version, self.status);
+
         for (key, value) in self.header.iter() {
-            res.push_str(key);
-            res.push_str(": ");
-            res.push_str(value);
-            res.push_str("\r\n");
+            let _ = write!(res, "{}: {}\r\n", key, value);
         }
+
         res.push_str("\r\n");
 
         [&res.as_bytes()[..], &self.body[..]].concat()

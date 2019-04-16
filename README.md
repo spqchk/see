@@ -5,10 +5,39 @@ rock is a static web server, developed using rust.
 
 ## Features
 
+## Install
+
 ## Use
 
+Quick Start
 ```bash
-cargo +nightly run
+rock start
+# or
+rock start 8080
+```
+
+Start according to the configuration file
+```bash
+rock
+# or
+rock -c /your/config.yml
+```
+
+More
+```
+USAGE:
+    rock [OPTIONS] [FLAGS] [--] ...
+
+FLAGS:
+    -d                  Running in the background
+    -h, help            Print help information
+    -s, stop            Stop the daemon
+    -t                  Check the config file for errors
+    -v, version         Print version number
+
+OPTIONS:
+    -c    <FILE>        Specify a configuration file
+    start <PORT?>       Quick Start
 ```
 
 ## Config

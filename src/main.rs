@@ -6,10 +6,10 @@ use std::u8;
 use std::{fs, fs::File};
 use std::env;
 use std::thread;
-use std::process;
-use std::process::Command;
+use std::{process, process::Command};
 use std::path::Path;
 use std::io::prelude::*;
+use std::fmt::Write as FmtWrite;
 use std::net::{TcpStream, TcpListener};
 mod response;
 use response::{StatusCode, Response};
@@ -27,26 +27,29 @@ static PID_PATH: &str = "/usr/local/var/run/rock.pid";
 #[cfg(target_os = "linux")]
 static PID_PATH: &str = "/var/run/rock.pid";
 #[cfg(target_os = "windows")]
-static PID_PATH: &str = "";
+static PID_PATH: &str = "./rock.pid";
 
 
 fn main() {
 
     //  Print help information
     if get_arg_flag("-h") || get_arg_flag("help") {
-        return println!(r#"{0} version {1}
+        return print!(r#"{0} version {1}
 {2}
 
 USAGE:
-    {0} [FLAGS] [--] [target]...
+    {0} [OPTIONS] [FLAGS] [--] ...
 
 FLAGS:
-    -c                  Specify a configuration file
     -d                  Running in the background
     -h, help            Print help information
     -s, stop            Stop the daemon
     -t                  Check the config file for errors
     -v, version         Print version number
+
+OPTIONS:
+    -c    <FILE>        Specify a configuration file
+    start <PORT?>       Quick Start
 "#,
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),
@@ -64,30 +67,57 @@ FLAGS:
         return stop_daemon();
     }
 
-    let mut config_path = match get_arg_option("-c") {
-        Some(p) => p,
-        None => String::from("rock.yml")
-    };
-
-    let config_buf = env::current_dir()
+    let mut configs: Vec<Vec<ServerConfig>>;
+    let current_buff = env::current_dir()
         .unwrap();
-    let root = config_buf
-        .to_str()
+    let current_dir = current_buff.to_str()
         .unwrap();
 
-    config_path = fill_path(root, &config_path);
+    if get_arg_flag("start") {
 
-    let configs = match ServerConfig::new(&config_path) {
-        Ok(config) => config,
-        Err(msg) => {
-            eprintln!("{}", msg);
-            process::exit(1);
+        let mut config = ServerConfig::default();
+
+        config.root = String::from(current_dir);
+        config.directory = true;
+        config.methods = vec![
+            String::from("GET"),
+            String::from("HEAD"),
+        ];
+        config.listen = match get_arg_option("start") {
+            Some(port) => {
+                if let Ok(p) = port.parse::<i64>() {
+                    p
+                }else {
+                    eprintln!("unable to bind to port {}", port);
+                    process::exit(1);
+                }
+            },
+            None => 80
+        };
+
+        configs = vec![vec![config]];
+
+    }else {
+
+        let mut config_path = match get_arg_option("-c") {
+            Some(p) => p,
+            None => String::from("rock.yml")
+        };
+
+        config_path = fill_path(current_dir, &config_path);
+        configs = match ServerConfig::new(&config_path) {
+            Ok(config) => config,
+            Err(msg) => {
+                eprintln!("{}", msg);
+                process::exit(1);
+            }
+        };
+
+        // Check configuration file
+        if get_arg_flag("-t") {
+            return println!("the configuration file {} syntax is ok", config_path);
         }
-    };
 
-    // Check configuration file
-    if get_arg_flag("-t") {
-        return println!("the configuration file {} syntax is ok", config_path);
     }
 
     // Running in the background
@@ -577,11 +607,11 @@ fn response_dir_html(path: &str, title: &str) -> String {
     let dir = match fs::read_dir(path) {
         Ok(dir) => dir,
         Err(_) => {
-            return String::from("")
+            return String::new()
         }
     };
 
-    let mut files = String::from("");
+    let mut files = String::new();
 
     for x in dir {
 
@@ -599,14 +629,28 @@ fn response_dir_html(path: &str, title: &str) -> String {
             },
             None => continue
         };
-
-        files += &format!(r#"<li><a href="{}">{}</a></li>"#, filename, filename);
+        
+        let _ = write!(files, r#"<li><a href="{}">{}</a></li>"#, filename, filename);
 
     }
 
     TEMPLATE
         .replace("{title}", title)
         .replace("{files}", &files)
+
+}
+
+
+#[cfg(test)]
+mod tests {
+
+//    use std::time::Instant;
+    use crate::response_dir_html;
+
+    #[test]
+    fn test_response_dir_html() {
+        response_dir_html(".", "title");
+    }
 
 }
 
