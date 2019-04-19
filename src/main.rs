@@ -1,15 +1,18 @@
 
 
+#![feature(async_await, await_macro, futures_api)]
+
+
 extern crate base64;
 use base64::decode;
 use std::u8;
 use std::{fs, fs::File};
 use std::env;
-use std::thread;
 use std::{process, process::Command};
 use std::path::Path;
 use std::io::prelude::*;
 use std::fmt::Write as FmtWrite;
+use runtime::task::JoinHandle;
 use std::net::{TcpStream, TcpListener};
 mod response;
 use response::{StatusCode, Response};
@@ -29,8 +32,10 @@ static PID_PATH: &str = "/var/run/rock.pid";
 #[cfg(target_os = "windows")]
 static PID_PATH: &str = "./rock.pid";
 
+const DEFAULT_CONFIG_PATH: &str = "config.yml";
 
-fn main() {
+#[runtime::main]
+async fn main() {
 
     //  Print help information
     if get_arg_flag("-h") || get_arg_flag("help") {
@@ -101,7 +106,7 @@ OPTIONS:
 
         let mut config_path = match get_arg_option("-c") {
             Some(p) => p,
-            None => String::from("rock.yml")
+            None => String::from(DEFAULT_CONFIG_PATH)
         };
 
         config_path = fill_path(current_dir, &config_path);
@@ -125,15 +130,15 @@ OPTIONS:
         return start_daemon();
     }
 
-    let mut wait = vec![];
+    let mut tasks: Vec<JoinHandle<()>> = vec![];
     for config in configs {
-        wait.push(thread::spawn(|| {
+        let run = runtime::spawn(async move {
             bind_tcp(config);
-        }));
+        });
+        tasks.push(run);
     }
-
-    for sp in wait {
-        sp.join().unwrap();
+    for task in tasks {
+        await!(task);
     }
 
 }
@@ -208,7 +213,7 @@ fn stop_daemon() {
 
 fn bind_tcp(config: Vec<ServerConfig>) {
 
-    let listen = &config[0].listen;
+    let listen = config[0].listen;
     let address = format!("0.0.0.0:{}", listen);
     let listener = TcpListener::bind(&address);
 

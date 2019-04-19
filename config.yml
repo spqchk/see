@@ -16,5 +16,6 @@
 - server:
      host: 127.0.0.1
      listen: 1234
-     root: ./
+     root: ./www
+     index: index.html
 
