@@ -3,8 +3,6 @@
 #![feature(async_await, await_macro, futures_api)]
 
 
-extern crate base64;
-use base64::decode;
 use std::u8;
 use std::{fs, fs::File};
 use std::env;
@@ -305,11 +303,8 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
     if let Some(auth) = &config.auth {
         let authorization = request.headers.get("authorization");
         if let Some(value) = authorization {
-            let config_auth = format!("{}:{}", auth.user, auth.password);
             // Support multiple ways ?
-            let base64 = value.replacen("Basic ", "", 1);
-            let base64_bytes = decode(&base64).unwrap();
-            if config_auth.as_bytes() != base64_bytes.as_slice() {
+            if auth != value {
                 if let Some(log) = &config.log.error {
                     log.write(&request.method, 401, &request.path);
                 }

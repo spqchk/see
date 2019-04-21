@@ -1,11 +1,13 @@
 
 
 extern crate yaml_rust;
+extern crate base64;
 use crate::log::Log;
 use crate::fill_path;
 use std::fs;
 use std::result::Result;
 use yaml_rust::{YamlLoader};
+use base64::encode;
 
 
 // Configuration of each service
@@ -20,7 +22,7 @@ pub struct ServerConfig {
     pub headers: Vec<Header>,
     pub extensions: Option<Vec<String>>,
     pub methods: Vec<String>,
-    pub auth: Option<Auth>,
+    pub auth: Option<String>,
     pub error: Error,
     pub log: Recording
 }
@@ -37,13 +39,6 @@ pub struct Header {
 pub struct Error {
     pub _404: Option<String>,
     pub _500: Option<String>
-}
-
-// HTTP auth
-#[derive(Debug, Default)]
-pub struct Auth {
-    pub user: String,
-    pub password: String
 }
 
 // Log path
@@ -197,20 +192,21 @@ impl ServerConfig {
 
             let auth = match &server["auth"].as_hash() {
                 Some(_) => {
-                    Some(Auth {
-                        user: match &server["auth"]["user"].as_str() {
-                            Some(d) => d.to_string(),
-                            None => {
-                                return Err(String::from("Missing 'user' in auth"));
-                            }
-                        },
-                        password: match &server["auth"]["password"].as_str() {
-                            Some(d) => d.to_string(),
-                            None => {
-                                return Err(String::from("Missing 'password' in auth"));
-                            }
+                    let user = match &server["auth"]["user"].as_str() {
+                        Some(d) => *d,
+                        None => {
+                            return Err(String::from("Missing 'user' in auth"));
                         }
-                    })
+                    };
+                    let password = match &server["auth"]["password"].as_str() {
+                        Some(d) => *d,
+                        None => {
+                            return Err(String::from("Missing 'password' in auth"));
+                        }
+                    };
+                    let s = format!("{}:{}", user, password);
+                    let base64 = format!("Basic {}", encode(&s));
+                    Some(base64)
                 },
                 None => None
             };
