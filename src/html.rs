@@ -14,6 +14,7 @@ pub const TEMPLATE: &'static str = r#"<!DOCTYPE html>
         }
         h1 {
             font-weight: normal;
+            word-wrap: break-word;
         }
         ul{
             padding-left: 0;

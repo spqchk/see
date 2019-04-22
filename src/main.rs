@@ -629,8 +629,12 @@ fn response_dir_html(path: &str, title: &str) -> String {
             },
             None => continue
         };
-        
-        let _ = write!(files, r#"<li><a href="{}">{}</a></li>"#, filename, filename);
+
+        if entry.is_dir() {
+            let _ = write!(files, "<li><a href=\"{}/\">{}/</a></li>", filename, filename);
+        }else {
+            let _ = write!(files, "<li><a href=\"{}\">{}</a></li>", filename, filename);
+        }
 
     }
 
