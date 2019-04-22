@@ -80,7 +80,9 @@ Complete configuration file example:
 ## Todo
 
 * [ ] Async/response
-* [ ] Async/log
-* [ ] Compress `50%`
-* [ ] Proxy
+* [ ] HTTP stream
+* [ ] Gzip compress
 * [ ] HTTPS / HTTP2
+* [ ] Proxy
+* [ ] Bind multiple domain names
+* [ ] Bind multiple ports
