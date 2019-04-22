@@ -309,7 +309,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                     log.write(&request.method, 401, &request.path);
                 }
                 return Response::new(StatusCode::_401)
-                    .content_type("")
+                    .content_type("txt")
                     .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
                     .headers(&config.headers)
                     .body(b"401");
@@ -319,7 +319,7 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                 log.write(&request.method, 401, &request.path);
             }
             return Response::new(StatusCode::_401)
-                .content_type("")
+                .content_type("txt")
                 .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
                 .headers(&config.headers)
                 .body(b"401");
