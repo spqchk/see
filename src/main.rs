@@ -19,7 +19,7 @@ use request::Request;
 mod html;
 use html::TEMPLATE;
 mod config;
-use config::ServerConfig;
+use config::{ServerConfig, DirectoryOption};
 mod log;
 
 
@@ -81,7 +81,10 @@ OPTIONS:
         let mut config = ServerConfig::default();
 
         config.root = String::from(current_dir);
-        config.directory = true;
+        config.directory = Some(DirectoryOption {
+            time: true,
+            size: true
+        });
         config.methods = vec![
             String::from("GET"),
             String::from("HEAD"),
@@ -359,14 +362,14 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                             }
                         }
                     }
-                    if config.directory {
+                    if let Some(option) = &config.directory {
                         if let Some(log) = &config.log.success {
                             log.write(&request.method, 200, &request.path);
                         }
                         return Response::new(StatusCode::_200)
                             .content_type("html")
                             .headers(&config.headers)
-                            .body(response_dir_html(&path, &request.path).as_bytes())
+                            .body(response_dir_html(&path, &request.path, option.time, option.size).as_bytes())
                     }
                     if let Some(log) = &config.log.error {
                         log.write(&request.method, 404, &request.path);
@@ -602,7 +605,7 @@ fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
 }
 
 
-fn response_dir_html(path: &str, title: &str) -> String {
+fn response_dir_html(path: &str, title: &str, show_time: bool, show_size: bool) -> String {
 
     let dir = match fs::read_dir(path) {
         Ok(dir) => dir,
@@ -623,18 +626,38 @@ fn response_dir_html(path: &str, title: &str) -> String {
         let filename = match entry.file_name() {
             Some(d) => {
                 match d.to_str() {
-                    Some(n) => n,
+                    Some(n) => {
+                        if entry.is_dir() {
+                            format!("{}/", n)
+                        }else {
+                            n.to_string()
+                        }
+                    },
                     None => continue
                 }
             },
             None => continue
         };
 
-        if entry.is_dir() {
-            let _ = write!(files, "<li><a href=\"{}/\">{}/</a></li>", filename, filename);
-        }else {
-            let _ = write!(files, "<li><a href=\"{}\">{}</a></li>", filename, filename);
+        let _ = write!(files, "<li><a href=\"{}\">{}</a>", filename, filename);
+
+        if show_size || show_time {
+            if let Ok(meta) = fs::metadata(&entry) {
+                if show_time {
+                    let now = meta.modified()
+                        .unwrap();
+                    let seconds = now.duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs();
+                    files.push_str(&format!("<time>{} sec ago</time>", seconds));
+                }
+                if show_size {
+                    files.push_str(&format!("<span>{}</span>", meta.len()));
+                }
+            }
         }
+
+        files.push_str("</a></li>");
 
     }
 

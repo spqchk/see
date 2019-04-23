@@ -17,7 +17,7 @@ pub struct ServerConfig {
     pub listen: i64,
     pub root: String,
     pub gzip: Option<Vec<String>>,
-    pub directory: bool,
+    pub directory: Option<DirectoryOption>,
     pub index: Option<String>,
     pub headers: Vec<Header>,
     pub extensions: Option<Vec<String>>,
@@ -25,6 +25,12 @@ pub struct ServerConfig {
     pub auth: Option<String>,
     pub error: Error,
     pub log: Recording
+}
+
+#[derive(Debug, Default)]
+pub struct DirectoryOption {
+    pub time: bool,
+    pub size: bool
 }
 
 // Header -> key: value
@@ -87,26 +93,26 @@ impl ServerConfig {
 
             let server = &x["server"];
 
-            let host = match &server["host"].as_str() {
+            let host = match server["host"].as_str() {
                 Some(d) => Some(d.to_string()),
                 None => None
             };
 
-            let listen = match &server["listen"].as_i64() {
-                Some(d) => *d,
+            let listen = match server["listen"].as_i64() {
+                Some(d) => d,
                 None => {
                     return Err(String::from("Must bind port"));
                 }
             };
 
-            let root = match &server["root"].as_str() {
+            let root = match server["root"].as_str() {
                 Some(d) => d.to_string(),
                 None => {
                     return Err(String::from("Must set root"));
                 }
             };
 
-            let gzip = match &server["gzip"].as_vec() {
+            let gzip = match server["gzip"].as_vec() {
                 Some(extensions) => {
                     let mut vec: Vec<String> = vec![];
                     for item in extensions.iter() {
@@ -119,17 +125,43 @@ impl ServerConfig {
                 None => None
             };
 
-            let directory = match &server["directory"].as_bool() {
-                Some(d) => *d,
-                None => false
+            let directory = match server["directory"].as_bool() {
+                // No option
+                Some(open) => {
+                    if open {
+                        Some(DirectoryOption::default())
+                    }else {
+                        None
+                    }
+                },
+                None => {
+                    match server["directory"].as_hash() {
+                        // read option
+                        Some(_) => {
+                            let time = match server["directory"]["time"].as_bool() {
+                                Some(time) => time,
+                                None => false
+                            };
+                            let size = match server["directory"]["size"].as_bool() {
+                                Some(size) => size,
+                                None => false
+                            };
+                            Some(DirectoryOption {
+                                time,
+                                size
+                            })
+                        },
+                        None => None
+                    }
+                }
             };
 
-            let index = match &server["index"].as_str() {
+            let index = match server["index"].as_str() {
                 Some(d) => Some(d.to_string()),
                 None => None
             };
 
-            let headers = match &server["headers"].as_hash() {
+            let headers = match server["headers"].as_hash() {
                 Some(header) => {
                     let mut headers: Vec<Header> = vec![];
                     for (key, value) in header.iter() {
@@ -145,7 +177,7 @@ impl ServerConfig {
                 None => vec![]
             };
 
-            let extensions = match &server["extensions"].as_vec() {
+            let extensions = match server["extensions"].as_vec() {
                 Some(extensions) => {
                     let mut vec: Vec<String> = vec![];
                     for item in extensions.iter() {
@@ -162,7 +194,7 @@ impl ServerConfig {
                 String::from("GET"),
                 String::from("HEAD"),
             ];
-            if let Some(vec) = &server["methods"].as_vec() {
+            if let Some(vec) = server["methods"].as_vec() {
                 for item in vec.iter() {
                     if let Some(method) = item.as_str() {
                         methods.push(method.to_string());
@@ -170,36 +202,36 @@ impl ServerConfig {
                 }
             }
 
-            let _404 = match &server["error"][404].as_str() {
+            let _404 = match server["error"][404].as_str() {
                 Some(d) => Some(fill_path(&root, d)),
                 None => None
             };
 
-            let _500 = match &server["error"][500].as_str() {
+            let _500 = match server["error"][500].as_str() {
                 Some(d) => Some(fill_path(&root, d)),
                 None => None
             };
 
-            let success = match &server["log"]["success"].as_str() {
+            let success = match server["log"]["success"].as_str() {
                 Some(d) => Some(Log::new(fill_path(&root, d))),
                 None => None
             };
 
-            let error = match &server["log"]["error"].as_str() {
+            let error = match server["log"]["error"].as_str() {
                 Some(d) => Some(Log::new(fill_path(&root, d))),
                 None => None
             };
 
-            let auth = match &server["auth"].as_hash() {
+            let auth = match server["auth"].as_hash() {
                 Some(_) => {
-                    let user = match &server["auth"]["user"].as_str() {
-                        Some(d) => *d,
+                    let user = match server["auth"]["user"].as_str() {
+                        Some(d) => d,
                         None => {
                             return Err(String::from("Missing 'user' in auth"));
                         }
                     };
-                    let password = match &server["auth"]["password"].as_str() {
-                        Some(d) => *d,
+                    let password = match server["auth"]["password"].as_str() {
+                        Some(d) => d,
                         None => {
                             return Err(String::from("Missing 'password' in auth"));
                         }

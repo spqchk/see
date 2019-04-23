@@ -52,7 +52,9 @@ Complete configuration file example:
     listen: 80            # Port to be monitored
     root: /root/www       # Directory that requires service
     index: index.html     # Index file
-    directory: true       # Whether to display the file list
+    directory:            # Whether to display the file list
+      time: true
+      size: true
     headers:              # Header in response
       Access-Control-Allow-Origin: *
       Set-Cookie: 12345

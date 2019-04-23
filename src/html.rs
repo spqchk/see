@@ -25,6 +25,9 @@ pub const TEMPLATE: &'static str = r#"<!DOCTYPE html>
             word-wrap: break-word;
             margin-top: 6px;
         }
+        time, span{
+            margin-left: 20px;
+        }
     </style>
 </head>
 <body>
