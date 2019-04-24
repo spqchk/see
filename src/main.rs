@@ -652,7 +652,7 @@ fn response_dir_html(path: &str, title: &str, show_time: bool, show_size: bool) 
                     files.push_str(&format!("<time>{} sec ago</time>", seconds));
                 }
                 if show_size {
-                    files.push_str(&format!("<span>{}</span>", meta.len()));
+                    files.push_str(&format!("<span>{}</span>", bytes_to_size(meta.len() as f64)));
                 }
             }
         }
@@ -665,6 +665,14 @@ fn response_dir_html(path: &str, title: &str, show_time: bool, show_size: bool) 
         .replace("{title}", title)
         .replace("{files}", &files)
 
+}
+
+
+fn bytes_to_size(bytes: f64) -> String {
+    let k = 1024_f64;
+    let sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+    let i = (bytes.ln() / k.ln()) as i32;
+    format!("{:.2} {}", bytes / k.powi(i), sizes[i as usize])
 }
 
 
