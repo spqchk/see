@@ -2,7 +2,7 @@
 
 #![feature(async_await, await_macro, futures_api)]
 
-
+extern crate chrono;
 use std::u8;
 use std::{fs, fs::File};
 use std::env;
@@ -12,6 +12,7 @@ use std::io::prelude::*;
 use std::fmt::Write as FmtWrite;
 use runtime::task::JoinHandle;
 use std::net::{TcpStream, TcpListener};
+use chrono::{DateTime, Local};
 mod response;
 use response::{StatusCode, Response};
 mod request;
@@ -644,15 +645,21 @@ fn response_dir_html(path: &str, title: &str, show_time: bool, show_size: bool) 
         if show_size || show_time {
             if let Ok(meta) = fs::metadata(&entry) {
                 if show_time {
-                    let now = meta.modified()
-                        .unwrap();
-                    let seconds = now.duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-                    files.push_str(&format!("<time>{} sec ago</time>", seconds));
+                    let time = if let Ok(time) = meta.modified() {
+                        let datetime: DateTime<Local> = DateTime::from(time);
+                        datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+                    }else {
+                        String::from("-")
+                    };
+                    files.push_str(&format!("<time>{}</time>", time));
                 }
                 if show_size {
-                    files.push_str(&format!("<span>{}</span>", bytes_to_size(meta.len() as f64)));
+                    let size = if entry.is_file() {
+                        String::from("-")
+                    }else {
+                        bytes_to_size(meta.len() as f64)
+                    };
+                    files.push_str(&format!("<span>{}</span>", size));
                 }
             }
         }

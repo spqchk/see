@@ -27,6 +27,11 @@ pub const TEMPLATE: &'static str = r#"<!DOCTYPE html>
         }
         time, span{
             margin-left: 20px;
+            display: inline-block;
+        }
+        span{
+            width: 80px;
+            text-align: right;
         }
     </style>
 </head>
