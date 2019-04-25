@@ -1,6 +1,6 @@
 
 
-#![feature(async_await, await_macro, futures_api)]
+#![feature(async_await, await_macro)]
 
 extern crate chrono;
 use std::u8;
@@ -615,7 +615,23 @@ fn response_dir_html(path: &str, title: &str, show_time: bool, show_size: bool) 
         }
     };
 
-    let mut files = String::new();
+    let (
+        mut files,
+        mut main,
+        mut first
+    ) = (
+        String::new(),
+        "auto auto 1fr",
+        "1 / 4"
+    );
+
+    if !show_time && !show_size{
+        main = "auto";
+        first = "1 / 2";
+    }else if (!show_time && show_size) || (show_time && !show_size) {
+        main = "auto 1fr";
+        first = "1 / 3";
+    }
 
     for x in dir {
 
@@ -640,36 +656,36 @@ fn response_dir_html(path: &str, title: &str, show_time: bool, show_size: bool) 
             None => continue
         };
 
-        let _ = write!(files, "<li><a href=\"{}\">{}</a>", filename, filename);
+        let _ = write!(files, "<a href=\"{}\">{}</a>", filename, filename);
 
         if show_size || show_time {
             if let Ok(meta) = fs::metadata(&entry) {
                 if show_time {
                     let time = if let Ok(time) = meta.modified() {
                         let datetime: DateTime<Local> = DateTime::from(time);
-                        datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+                        datetime.format("%Y-%m-%d %H:%M").to_string()
                     }else {
-                        String::from("-")
+                        String::new()
                     };
                     files.push_str(&format!("<time>{}</time>", time));
                 }
                 if show_size {
                     let size = if entry.is_file() {
-                        String::from("-")
-                    }else {
                         bytes_to_size(meta.len() as f64)
+                    }else {
+                        String::new()
                     };
                     files.push_str(&format!("<span>{}</span>", size));
                 }
             }
         }
 
-        files.push_str("</a></li>");
-
     }
 
     TEMPLATE
         .replace("{title}", title)
+        .replace("{main}", main)
+        .replace("{first}", first)
         .replace("{files}", &files)
 
 }
@@ -680,20 +696,6 @@ fn bytes_to_size(bytes: f64) -> String {
     let sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
     let i = (bytes.ln() / k.ln()) as i32;
     format!("{:.2} {}", bytes / k.powi(i), sizes[i as usize])
-}
-
-
-#[cfg(test)]
-mod tests {
-
-//    use std::time::Instant;
-    use crate::response_dir_html;
-
-    #[test]
-    fn test_response_dir_html() {
-        response_dir_html(".", "title");
-    }
-
 }
 
 

@@ -9,40 +9,36 @@ pub const TEMPLATE: &'static str = r#"<!DOCTYPE html>
     <title>Index of {title}</title>
     <style>
         body {
-            font-family: microsoft yahei, "Helvetica Neue", "pingfang sc";
+            font-family: "microsoft yahei", "Helvetica Neue", "pingfang sc";
             padding: 0 24px 0;
         }
         h1 {
             font-weight: normal;
             word-wrap: break-word;
         }
-        ul{
-            padding-left: 0;
+        main{
+            display: grid;
+            grid-template-columns: {main};
         }
-        li {
-            list-style-type: none;
+        a:first-child{
+            grid-column: {first};
+        }
+        a, time, span{
             line-height: 20px;
             word-wrap: break-word;
             margin-top: 6px;
         }
         time, span{
-            margin-left: 20px;
-            display: inline-block;
-        }
-        span{
-            width: 80px;
-            text-align: right;
+            padding-left: 20px;
         }
     </style>
 </head>
 <body>
     <h1>Index of {title}</h1>
-    <ul>
-        <li>
-            <a href="../">../</a>
-        </li>
+    <main>
+        <a href="../">../</a>
         {files}
-    </ul>
+    </main>
 </body>
 </html>"#;
 
