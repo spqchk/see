@@ -1,7 +1,7 @@
 
-# rock [![Build Status](https://img.shields.io/travis/wyhaya/rock.svg?style=flat-square)](https://travis-ci.org/wyhaya/rock)
+# see [![Build Status](https://img.shields.io/travis/wyhaya/see.svg?style=flat-square)](https://travis-ci.org/wyhaya/see)
 
-rock is a static web server, developed using rust.
+see is a static web server, developed using rust.
 
 ## Features
 
@@ -11,22 +11,22 @@ rock is a static web server, developed using rust.
 
 Quick Start
 ```bash
-rock start
+see start
 # or
-rock start 8080
+see start 8080
 ```
 
 Start according to the configuration file
 ```bash
-rock
+see
 # or
-rock -c /your/config.yml
+see -c /your/config.yml
 ```
 
 More
 ```
 USAGE:
-    rock [OPTIONS] [FLAGS] [--] ...
+    see [OPTIONS] [FLAGS] [--] ...
 
 FLAGS:
     -d                  Running in the background
@@ -42,7 +42,7 @@ OPTIONS:
 
 ## Config
 
-Use `yaml` format as a configuration file, You can use `rock -c /your/config.yml` to specify the configuration file location.
+Use `yaml` format as a configuration file, You can use `see -c /your/config.yml` to specify the configuration file location.
 
 Complete configuration file example: 
 

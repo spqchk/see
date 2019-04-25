@@ -25,11 +25,11 @@ mod log;
 
 
 #[cfg(target_os = "macos")]
-static PID_PATH: &str = "/usr/local/var/run/rock.pid";
+static PID_PATH: &str = "/usr/local/var/run/see.pid";
 #[cfg(target_os = "linux")]
-static PID_PATH: &str = "/var/run/rock.pid";
+static PID_PATH: &str = "/var/run/see.pid";
 #[cfg(target_os = "windows")]
-static PID_PATH: &str = "./rock.pid";
+static PID_PATH: &str = "./see.pid";
 
 const DEFAULT_CONFIG_PATH: &str = "config.yml";
 
@@ -53,7 +53,7 @@ FLAGS:
 
 OPTIONS:
     -c    <FILE>        Specify a configuration file
-    start <PORT?>       Quick Start
+    start <PORT>?       Quick Start
 "#,
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),

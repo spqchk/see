@@ -582,21 +582,6 @@ version = "0.1.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "rock"
-version = "0.0.0"
-dependencies = [
- "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-preview 0.3.0-alpha.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "libflate 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
- "percent-encoding 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "runtime 0.3.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "runtime-native 0.3.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "runtime-raw 0.3.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "yaml-rust 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "romio"
 version = "0.3.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -670,6 +655,21 @@ dependencies = [
 name = "scopeguard"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "see"
+version = "0.0.0-alpha.0"
+dependencies = [
+ "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-preview 0.3.0-alpha.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libflate 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
+ "percent-encoding 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "runtime 0.3.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "runtime-native 0.3.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "runtime-raw 0.3.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "yaml-rust 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "semver"
