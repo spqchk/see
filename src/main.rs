@@ -694,8 +694,23 @@ fn response_dir_html(path: &str, title: &str, show_time: bool, show_size: bool) 
 fn bytes_to_size(bytes: f64) -> String {
     let k = 1024_f64;
     let sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+    if bytes <= 1_f64 {
+        return format!("{:.2} B", bytes)
+    }
     let i = (bytes.ln() / k.ln()) as i32;
     format!("{:.2} {}", bytes / k.powi(i), sizes[i as usize])
 }
 
 
+#[test]
+fn test_bytes_to_size() {
+    assert_eq!(bytes_to_size(0_f64), "0.00 B");
+    assert_eq!(bytes_to_size(0.5_f64), "0.50 B");
+    assert_eq!(bytes_to_size(1_f64), "1.00 B");
+    assert_eq!(bytes_to_size(12_f64), "12.00 B");
+    assert_eq!(bytes_to_size(1024_f64), "1.00 KB");
+    assert_eq!(bytes_to_size(1025_f64), "1.00 KB");
+    assert_eq!(bytes_to_size(123456_f64), "120.56 KB");
+    assert_eq!(bytes_to_size(99999999_f64), "95.37 MB");
+    assert_eq!(bytes_to_size(99999999999_f64), "93.13 GB");
+}
