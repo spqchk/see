@@ -4,14 +4,15 @@
 
 extern crate chrono;
 use std::u8;
+use std::sync::Arc;
 use std::{fs, fs::File};
 use std::env;
 use std::{process, process::Command};
 use std::path::Path;
 use std::io::prelude::*;
 use std::fmt::Write as FmtWrite;
-use runtime::task::JoinHandle;
 use std::net::{TcpStream, TcpListener};
+use std::thread::JoinHandle;
 use chrono::{DateTime, Local};
 mod response;
 use response::{StatusCode, Response};
@@ -33,8 +34,7 @@ static PID_PATH: &str = "./see.pid";
 
 const DEFAULT_CONFIG_PATH: &str = "config.yml";
 
-#[runtime::main]
-async fn main() {
+fn main() {
 
     //  Print help information
     if get_arg_flag("-h") || get_arg_flag("help") {
@@ -71,7 +71,7 @@ OPTIONS:
         return stop_daemon();
     }
 
-    let mut configs: Vec<Vec<ServerConfig>>;
+    let mut configs: Vec<Arc<Vec<ServerConfig>>>;
     let current_buff = env::current_dir()
         .unwrap();
     let current_dir = current_buff.to_str()
@@ -102,7 +102,7 @@ OPTIONS:
             None => 80
         };
 
-        configs = vec![vec![config]];
+        configs = vec![Arc::new(vec![config])];
 
     }else {
 
@@ -134,13 +134,13 @@ OPTIONS:
 
     let mut tasks: Vec<JoinHandle<()>> = vec![];
     for config in configs {
-        let run = runtime::spawn(async move {
+        let c = std::thread::spawn(move || {
             bind_tcp(config);
         });
-        tasks.push(run);
+        tasks.push(c);
     }
     for task in tasks {
-        await!(task);
+        task.join().unwrap();
     }
 
 }
@@ -213,9 +213,9 @@ fn stop_daemon() {
 }
 
 
-fn bind_tcp(config: Vec<ServerConfig>) {
+fn bind_tcp(configs: Arc<Vec<ServerConfig>>) {
 
-    let listen = config[0].listen;
+    let listen = configs[0].listen;
     let address = format!("0.0.0.0:{}", listen);
     let listener = TcpListener::bind(&address);
 
@@ -227,14 +227,17 @@ fn bind_tcp(config: Vec<ServerConfig>) {
 
     for stream in listener.unwrap().incoming() {
         if let Ok(stream) = stream {
-            handle_connection(stream, &config);
+            let configs = configs.clone();
+            std::thread::spawn(|| {
+                handle_connection(stream, configs);
+            });
         }
     }
 
 }
 
 
-fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
+fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
 
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
@@ -248,7 +251,7 @@ fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
     let req = Request::new(&buffer[..]);
 
     if let Some(host) = req.headers.get("host") {
-        for conf in config {
+        for conf in configs.iter() {
             let rm_listen = format!(":{}", &conf.listen);
             if let Some(val) = &conf.host {
                 if val == &host.replace(rm_listen.as_str(), "") {
@@ -260,7 +263,7 @@ fn handle_connection(mut stream: TcpStream, config: &Vec<ServerConfig>) {
     }
 
     if res.len() == 0 {
-        for conf in config {
+        for conf in configs.iter() {
             if let None = conf.host {
                 res = output(&req, &conf);
                 break;

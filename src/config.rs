@@ -2,6 +2,7 @@
 
 extern crate yaml_rust;
 extern crate base64;
+use std::sync::Arc;
 use crate::log::Log;
 use crate::fill_path;
 use std::fs;
@@ -58,7 +59,7 @@ pub struct Recording {
 impl ServerConfig {
 
     // The same port service is a group
-    pub fn new(path: &str) -> Result<Vec<Vec<ServerConfig>>, String>  {
+    pub fn new(path: &str) -> Result<Vec<Arc<Vec<ServerConfig>>>, String>  {
 
         let content = match fs::read_to_string(&path) {
             Ok(content) => content,
@@ -280,7 +281,12 @@ impl ServerConfig {
 
         }
 
-        Ok(configs)
+        let mut conf = vec![];
+        for config in configs {
+            conf.push(Arc::new(config));
+        }
+
+        Ok(conf)
 
     }
 

@@ -62,7 +62,7 @@ impl Log {
         let method = String::from(method);
         let path = String::from(path);
 
-        runtime::spawn(async move {
+        std::thread::spawn(move || {
             let time: DateTime<Local> = prelude::Local::now();
             if let Err(e) = writeln!(file, "{0}  {1: <6}  {2}  {3}", time, method, status, path) {
                 eprintln!("Couldn't write to file: {}", e);
