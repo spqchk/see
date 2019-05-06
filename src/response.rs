@@ -6,6 +6,10 @@ use std::collections::HashMap;
 use std::io::Write as IoWrite;
 use std::fmt::Write as FmtWrite;
 use libflate::gzip;
+use std::net::TcpStream;
+use std::fs::File;
+use std::io::BufReader;
+use std::io::prelude::*;
 
 #[derive(Default, Debug)]
 pub struct Response {
@@ -186,6 +190,38 @@ impl Response {
         res.push_str("\r\n");
 
         [&res.as_bytes()[..], &self.body[..]].concat()
+
+    }
+
+    pub fn stream(mut self, mut stream: &TcpStream, file: File) {
+
+        let meta = file.metadata().unwrap();
+        if self.gzip {
+            self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
+        }
+//        self.header.insert("Transfer-Encoding".to_string(), "chunked".to_string());
+        self.header.insert("Content-Length".to_string(), format!("{}", meta.len()));
+
+        let mut res = String::new();
+        let _ = write!(res, "{} {}\r\n", self.version, self.status);
+        for (key, value) in self.header.iter() {
+            let _ = write!(res, "{}: {}\r\n", key, value);
+        }
+        res.push_str("\r\n");
+        stream.write(res.as_bytes()).unwrap();
+
+        loop {
+            let mut render = BufReader::new(&file);
+            if let Ok(data) = render.fill_buf() {
+                if data.len() != 0 {
+                    stream.write(data).unwrap();
+                }else {
+                    break;
+                }
+            }else {
+                break;
+            }
+        }
 
     }
 

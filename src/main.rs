@@ -219,18 +219,27 @@ fn bind_tcp(configs: Arc<Vec<ServerConfig>>) {
     let address = format!("0.0.0.0:{}", listen);
     let listener = TcpListener::bind(&address);
 
-    if let Err(listener) = listener {
-        eprintln!("{:?}", listener);
-        eprintln!("Binding {} failed", address);
-        process::exit(1);
-    }
+    match listener {
+        Ok(listener) => {
 
-    for stream in listener.unwrap().incoming() {
-        if let Ok(stream) = stream {
-            let configs = configs.clone();
-            std::thread::spawn(|| {
-                handle_connection(stream, configs);
-            });
+//            if let Err(err) = listener.set_nonblocking(true) {
+//                eprintln!("{:?}", err);
+//                process::exit(1);
+//            }
+
+            for stream in listener.incoming() {
+                if let Ok(stream) = stream {
+                    let configs = configs.clone();
+                    std::thread::spawn(|| {
+                        handle_connection(stream, configs);
+                    });
+                }
+            }
+        },
+        Err(err) => {
+            eprintln!("{:?}", err);
+            eprintln!("Binding {} failed", address);
+            process::exit(1);
         }
     }
 
@@ -251,11 +260,10 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
     let req = Request::new(&buffer[..]);
 
     if let Some(host) = req.headers.get("host") {
-        for conf in configs.iter() {
-            let rm_listen = format!(":{}", &conf.listen);
-            if let Some(val) = &conf.host {
-                if val == &host.replace(rm_listen.as_str(), "") {
-                    res = output(&req, &conf);
+        for config in configs.iter() {
+            if let Some(val) = &config.host {
+                if val == &host.replace(&format!(":{}", config.listen), "") {
+                    res = output(&req, &config, &stream);
                     break;
                 }
             }
@@ -265,7 +273,7 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
     if res.len() == 0 {
         for conf in configs.iter() {
             if let None = conf.host {
-                res = output(&req, &conf);
+                res = output(&req, &conf, &stream);
                 break;
             }
         }
@@ -279,7 +287,7 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
 }
 
 
-fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
+fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u8> {
 
     // Not allowed method
     let allow = config.methods.iter().find(|item| {
@@ -346,17 +354,18 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                 if get_last_string(&request.path) == String::from("/") {
                     if let Some(index) = &config.index {
                         let index_path = fill_path(&path, &index);
-                        match fs::read(index_path) {
-                            Ok(data) => {
+                        match File::open(index_path) {
+                            Ok(file) => {
                                 if let Some(log) = &config.log.success {
                                     log.write(&request.method, 200, &request.path);
                                 }
                                 let ext = get_extension(index);
-                                return Response::new(StatusCode::_200)
+                                Response::new(StatusCode::_200)
                                     .content_type(ext)
                                     .headers(&config.headers)
                                     .gzip(can_use_gzip(&request, &config, &ext))
-                                    .body(&data[..])
+                                    .stream(&stream, file);
+                                return vec![]
                             },
                             Err(_) => {
                                 if let Some(log) = &config.log.error {
@@ -390,17 +399,18 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                         .body(b"")
                 }
             }else {
-                match fs::read(&path) {
-                    Ok(data) => {
+                match File::open(&path) {
+                    Ok(file) => {
                         if let Some(log) = &config.log.success {
                             log.write(&request.method, 200, &request.path);
                         }
                         let ext = get_extension(&path);
-                        return Response::new(StatusCode::_200)
+                        Response::new(StatusCode::_200)
                             .content_type(&ext)
                             .headers(&config.headers)
                             .gzip(can_use_gzip(&request, &config, &ext))
-                            .body(&data[..])
+                            .stream(&stream, file);
+                        return vec![]
                     },
                     Err(_) => {
                         if let Some(log) = &config.log.error {
@@ -418,11 +428,12 @@ fn output(request: &Request, config: &ServerConfig) -> Vec<u8> {
                         if let Some(log) = &config.log.success {
                             log.write(&request.method, 200, &request.path);
                         }
-                        return Response::new(StatusCode::_200)
+                        Response::new(StatusCode::_200)
                             .content_type(&fallback.ext)
                             .headers(&config.headers)
                             .gzip(can_use_gzip(&request, &config, &fallback.ext))
-                            .body(&fallback.data);
+                            .stream(&stream, fallback.file);
+                        return vec![]
                     },
                     Err(_) => {
                         if let Some(log) = &config.log.error {
@@ -582,7 +593,7 @@ fn get_last_string(path: &str) -> String {
 
 
 struct Fallbacks {
-    data: Vec<u8>,
+    file: File,
     ext: String
 }
 
@@ -596,9 +607,9 @@ fn fallbacks(file: &str, exts: &Vec<String>) -> Result<Fallbacks, ()> {
 
     for x in exts {
         let path = format!("{}.{}", file, x);
-        if let Ok(data) = fs::read(&path) {
+        if let Ok(file) = File::open(&path) {
             return Ok(Fallbacks {
-                data,
+                file,
                 ext: x.to_string()
             });
         }
