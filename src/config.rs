@@ -2,19 +2,19 @@
 
 extern crate yaml_rust;
 extern crate base64;
-use std::sync::Arc;
-use crate::log::Log;
-use crate::fill_path;
-use std::fs;
-use std::result::Result;
-use yaml_rust::{YamlLoader};
-use base64::encode;
 
+use std::fs;
+use std::sync::Arc;
+use std::result::Result;
+use crate::log::Log;
+use base64::encode;
+use crate::fill_path;
+use yaml_rust::{YamlLoader};
 
 // Configuration of each service
 #[derive(Debug, Default)]
 pub struct ServerConfig {
-    pub host: Option<String>,
+    pub hosts: Option<Vec<String>>,
     pub listen: i64,
     pub root: String,
     pub gzip: Option<Vec<String>>,
@@ -94,9 +94,23 @@ impl ServerConfig {
 
             let server = &x["server"];
 
-            let host = match server["host"].as_str() {
-                Some(d) => Some(d.to_string()),
-                None => None
+            let hosts = match server["host"].as_vec() {
+                Some(vec) => {
+                    let mut hosts = vec![];
+                    for item in vec.iter() {
+                        if let Some(d) = item.as_str() {
+                            hosts.push(String::from(d));
+                        }
+                    }
+                    Some(hosts)
+                },
+                None => {
+                    if let Some(d) = server["host"].as_str() {
+                        Some(vec![String::from(d)])
+                    }else {
+                        None
+                    }
+                }
             };
 
             let listen = match server["listen"].as_i64() {
@@ -162,7 +176,7 @@ impl ServerConfig {
                 None => None
             };
 
-            let headers = match server["headers"].as_hash() {
+            let headers = match server["header"].as_hash() {
                 Some(header) => {
                     let mut headers: Vec<Header> = vec![];
                     for (key, value) in header.iter() {
@@ -178,7 +192,7 @@ impl ServerConfig {
                 None => vec![]
             };
 
-            let extensions = match server["extensions"].as_vec() {
+            let extensions = match server["extension"].as_vec() {
                 Some(extensions) => {
                     let mut vec: Vec<String> = vec![];
                     for item in extensions.iter() {
@@ -195,7 +209,7 @@ impl ServerConfig {
                 String::from("GET"),
                 String::from("HEAD"),
             ];
-            if let Some(vec) = server["methods"].as_vec() {
+            if let Some(vec) = server["method"].as_vec() {
                 for item in vec.iter() {
                     if let Some(method) = item.as_str() {
                         methods.push(method.to_string());
@@ -245,7 +259,7 @@ impl ServerConfig {
             };
 
             let config = ServerConfig {
-                host,
+                hosts,
                 listen,
                 root,
                 gzip,

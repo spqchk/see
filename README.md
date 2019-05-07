@@ -55,19 +55,19 @@ Complete configuration file example:
     directory:            # Whether to display the file list
       time: true
       size: true
-    headers:              # Header in response
-      Access-Control-Allow-Origin: *
-      Set-Cookie: 12345
+    header:               # Header in response
+      Access-Control-Allow-Origin: "*"
+      Set-Cookie: "12345"
     gzip:                 # File type that needs to be compressed
       - html
       - css
-    methods:              # Method of allowing requests
+    method:               # Method of allowing requests
       - POST
       - PUT
     auth:                 # Http user and password verification
       user: name
       password: pwd
-    extensions:           # Sets file extension fallbacks
+    extension:            # Sets file extension fallbacks
       - html
       - htm
     error:                # Custom error page
@@ -86,5 +86,5 @@ Complete configuration file example:
 * [ ] Gzip compress
 * [ ] HTTPS / HTTP2
 * [ ] Proxy
-* [ ] Bind multiple domain names
+* [x] Bind multiple domain names
 * [ ] Bind multiple ports

@@ -1,7 +1,5 @@
 
 
-#![feature(async_await, await_macro)]
-
 extern crate chrono;
 use std::u8;
 use std::sync::Arc;
@@ -260,11 +258,14 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
     let req = Request::new(&buffer[..]);
 
     if let Some(host) = req.headers.get("host") {
-        for config in configs.iter() {
-            if let Some(val) = &config.host {
-                if val == &host.replace(&format!(":{}", config.listen), "") {
-                    res = output(&req, &config, &stream);
-                    break;
+        let host = &host.replace(&format!(":{}", configs[0].listen), "");
+        'configs: for config in configs.iter() {
+            if let Some(hosts) = &config.hosts {
+                for val in hosts {
+                    if val == host {
+                        res = output(&req, &config, &stream);
+                        break 'configs;
+                    }
                 }
             }
         }
@@ -272,7 +273,7 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
 
     if res.len() == 0 {
         for conf in configs.iter() {
-            if let None = conf.host {
+            if let None = conf.hosts {
                 res = output(&req, &conf, &stream);
                 break;
             }
