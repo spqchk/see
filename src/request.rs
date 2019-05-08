@@ -9,6 +9,7 @@ use percent_encoding::percent_decode;
 pub struct Request {
     pub method: String,
     pub path: String,
+    pub query: Option<String>,
     pub headers: HashMap<String, String>
 }
 
@@ -43,10 +44,20 @@ impl Request {
         let line = split(&req[0], vec![32]);
         let method = String::from_utf8_lossy(&line[0]).to_string();
         let full_path = split(&line[1], vec![63]);
+
         let path = percent_decode(&full_path[0])
             .decode_utf8()
             .unwrap()
             .to_string();
+       
+        let query = if let Some(q) = full_path.get(1) {
+            Some(percent_decode(q)
+                .decode_utf8()
+                .unwrap()
+                .to_string())
+        }else {
+            None
+        };
 
         let mut headers = HashMap::new();
         for h in &req[1..] {
@@ -67,6 +78,7 @@ impl Request {
         Request {
             method,
             path,
+            query,
             headers
         }
 

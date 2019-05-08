@@ -393,7 +393,13 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                     if let Some(log) = &config.log.success {
                         log.write(&request.method, 301, &request.path);
                     }
-                    let moved = format!("{}/", request.path);
+                    let moved;
+                    if let Some(query) = &request.query {
+                        moved = format!("{}/?{}", request.path, query);
+                    }else {
+                        moved = format!("{}/", request.path);
+                    }
+                    dbg!(&moved);
                     return Response::new(StatusCode::_301)
                         .header("location", &moved)
                         .headers(&config.headers)
