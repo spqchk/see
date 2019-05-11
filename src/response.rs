@@ -3,7 +3,6 @@
 extern crate libflate;
 use crate::config::Header;
 use std::collections::HashMap;
-use std::io::Write as IoWrite;
 use std::fmt::Write as FmtWrite;
 use libflate::gzip;
 use std::net::TcpStream;
@@ -35,7 +34,7 @@ const SERVER_NAME: &str = env!("CARGO_PKG_NAME");
 impl Response {
 
     // HTTP response
-    pub fn new(status: StatusCode) -> Response {
+    pub fn new(status: StatusCode, headers: &Vec<Header>) -> Response {
 
         let mut response = Response::default();
 
@@ -54,6 +53,13 @@ impl Response {
         // Add service name
         response.header.insert(String::from("Server"), SERVER_NAME.to_string());
 
+        for header in headers.iter() {
+            response.header.insert(
+                header.key.to_string(),
+                header.value.to_string()
+            );
+        }
+
         response
 
     }
@@ -62,17 +68,6 @@ impl Response {
     pub fn header(mut self, key: &str, value:  &str) -> Response {
 
         self.header.insert(key.to_string(), value.to_string());
-
-        self
-
-    }
-
-    // Set multiple header
-    pub fn headers(mut self, headers: &Vec<Header>) -> Response {
-
-        for header in headers {
-            self.header.insert(header.key.to_string(), header.value.to_string());
-        }
 
         self
 
@@ -164,7 +159,26 @@ impl Response {
 
     }
 
-    // Build a complete response
+    pub fn text(mut self, text: &str) -> Vec<u8> {
+
+        self.body = text.as_bytes().to_vec();
+        self.header.insert("Content-Type".to_string(), "text/plain".to_string());
+        self.header.insert("Content-Length".to_string(), self.body.len().to_string());
+
+        let mut res = String::new();
+
+        let _ = write!(res, "{} {}\r\n", self.version, self.status);
+
+        for (key, value) in self.header.iter() {
+            let _ = write!(res, "{}: {}\r\n", key, value);
+        }
+
+        res.push_str("\r\n");
+
+        [&res.as_bytes()[..], &self.body[..]].concat()
+
+    }
+
     pub fn body(mut self, data: &[u8]) -> Vec<u8> {
 
         if self.gzip {
@@ -172,10 +186,10 @@ impl Response {
                 self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
                 self.body = d;
             }else {
-                self.body = data[..].iter().cloned().collect();
+                self.body = data.to_vec();
             }
         }else {
-            self.body = data[..].iter().cloned().collect();
+            self.body = data.to_vec();
         }
         self.header.insert("Content-Length".to_string(), self.body.len().to_string());
 
@@ -193,7 +207,7 @@ impl Response {
 
     }
 
-    pub fn stream(mut self, mut stream: &TcpStream, file: File) {
+    pub fn file(mut self, mut stream: &TcpStream, file: File) {
 
         let meta = file.metadata().unwrap();
         if self.gzip {

@@ -21,7 +21,8 @@ use html::TEMPLATE;
 mod config;
 use config::{ServerConfig, DirectoryOption};
 mod log;
-
+mod app;
+use app::App;
 
 #[cfg(target_os = "macos")]
 static PID_PATH: &str = "/usr/local/var/run/see.pid";
@@ -31,41 +32,21 @@ static PID_PATH: &str = "/var/run/see.pid";
 static PID_PATH: &str = "./see.pid";
 
 const DEFAULT_CONFIG_PATH: &str = "config.yml";
+const DEFAULT_PORT: i64 = 80;
 
 fn main() {
 
-    //  Print help information
-    if get_arg_flag("-h") || get_arg_flag("help") {
-        return print!(r#"{0} version {1}
-{2}
+    let app = App::new();
 
-USAGE:
-    {0} [OPTIONS] [FLAGS] [--] ...
-
-FLAGS:
-    -d                  Running in the background
-    -h, help            Print help information
-    -s, stop            Stop the daemon
-    -t                  Check the config file for errors
-    -v, version         Print version number
-
-OPTIONS:
-    -c    <FILE>        Specify a configuration file
-    start <PORT>?       Quick Start
-"#,
-            env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION"),
-            env!("CARGO_PKG_AUTHORS")
-        );
+    if app.help() {
+        return app.print_help();
     }
 
-    // Print version number
-    if get_arg_flag("-v") || get_arg_flag("version") {
-        return println!("{} version {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+    if app.version() {
+        return app.print_version();
     }
 
-    // Stop the daemon
-    if get_arg_flag("-s") || get_arg_flag("stop") {
+    if app.stop() {
         return stop_daemon();
     }
 
@@ -75,10 +56,9 @@ OPTIONS:
     let current_dir = current_buff.to_str()
         .unwrap();
 
-    if get_arg_flag("start") {
+    if app.start() {
 
         let mut config = ServerConfig::default();
-
         config.root = String::from(current_dir);
         config.directory = Some(DirectoryOption {
             time: true,
@@ -88,24 +68,24 @@ OPTIONS:
             String::from("GET"),
             String::from("HEAD"),
         ];
-        config.listen = match get_arg_option("start") {
-            Some(port) => {
-                if let Ok(p) = port.parse::<i64>() {
-                    p
-                }else {
-                    eprintln!("unable to bind to port {}", port);
-                    process::exit(1);
+        config.listen = match app.port() {
+            Ok(result) => {
+                match result {
+                    Some(port) => port,
+                    None => DEFAULT_PORT
                 }
             },
-            None => 80
+            Err(arg) => {
+                eprintln!("unable to bind to port \"{}\"", arg);
+                process::exit(1);
+            }
         };
-
         configs = vec![Arc::new(vec![config])];
 
     }else {
 
-        let mut config_path = match get_arg_option("-c") {
-            Some(p) => p,
+        let mut config_path = match app.config() {
+            Some(path) => path,
             None => String::from(DEFAULT_CONFIG_PATH)
         };
 
@@ -119,15 +99,14 @@ OPTIONS:
         };
 
         // Check configuration file
-        if get_arg_flag("-t") {
+        if app.test() {
             return println!("the configuration file {} syntax is ok", config_path);
         }
 
     }
 
-    // Running in the background
-    if get_arg_flag("-d") {
-        return start_daemon();
+    if app.detach() {
+        return start_daemon(&app.args, app.detach_args());
     }
 
     let mut tasks: Vec<JoinHandle<()>> = vec![];
@@ -144,34 +123,20 @@ OPTIONS:
 }
 
 
-fn get_arg_option(arg: &str) -> Option<String> {
-    let args: Vec<String> = env::args().collect();
-    for (i, x) in args.iter().enumerate() {
-        if arg == x && args.len() > i + 1 {
-            return Some(args[i + 1].to_string());
-        }
-    }
-    None
-}
+fn start_daemon(args: &Vec<String>, detach: [&str; 2]) {
 
+    let args = args
+        .iter()
+        .filter(|item| {
+            return *item != detach[0] && *item != detach[1]
+        })
+        .cloned()
+        .collect::<Vec<String>>();
 
-fn get_arg_flag(flag: &str) -> bool {
-    let args: Vec<String> = env::args().collect();
-    for x in args.iter() {
-        if x == &flag {
-            return true;
-        }
-    }
-    false
-}
-
-
-fn start_daemon() {
-    let args: Vec<String> = env::args().collect();
-    let args: Vec<String> = args.iter().filter(|item| *item != "-d").cloned().collect();
     let child = Command::new(&args[0])
         .args(&args[1..])
         .spawn();
+
     match child {
         Ok(child) => {
             let mut pid = File::create(PID_PATH)
@@ -182,6 +147,7 @@ fn start_daemon() {
             eprintln!("{}", e);
         }
     }
+
 }
 
 
@@ -298,10 +264,9 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
         if let Some(log) = &config.log.error {
             log.write(&request.method, 405, &request.path);
         }
-        return Response::new(StatusCode::_405)
-            .content_type("txt")
-            .headers(&config.headers)
-            .body(b"405");
+
+        return Response::new(StatusCode::_405, &config.headers)
+            .text("405");
     }
 
     // A Host header field must be sent in all HTTP/1.1 request messages
@@ -309,36 +274,28 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
         if let Some(log) = &config.log.error {
             log.write(&request.method, 400, &request.path);
         }
-        return Response::new(StatusCode::_400)
-            .content_type("txt")
-            .headers(&config.headers)
-            .body(b"400");
+        return Response::new(StatusCode::_400, &config.headers)
+            .text("400");
     }
 
-    // Do you need authentication
     if let Some(auth) = &config.auth {
         let authorization = request.headers.get("authorization");
         if let Some(value) = authorization {
-            // Support multiple ways ?
             if auth != value {
                 if let Some(log) = &config.log.error {
                     log.write(&request.method, 401, &request.path);
                 }
-                return Response::new(StatusCode::_401)
-                    .content_type("txt")
+                return Response::new(StatusCode::_401, &config.headers)
                     .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
-                    .headers(&config.headers)
-                    .body(b"401");
+                    .text("401");
             }
         }else {
             if let Some(log) = &config.log.error {
                 log.write(&request.method, 401, &request.path);
             }
-            return Response::new(StatusCode::_401)
-                .content_type("txt")
+            return Response::new(StatusCode::_401, &config.headers)
                 .header("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
-                .headers(&config.headers)
-                .body(b"401");
+                .text("401");
         }
     }
 
@@ -361,11 +318,10 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                                     log.write(&request.method, 200, &request.path);
                                 }
                                 let ext = get_extension(index);
-                                Response::new(StatusCode::_200)
+                                Response::new(StatusCode::_200, &config.headers)
                                     .content_type(ext)
-                                    .headers(&config.headers)
                                     .gzip(can_use_gzip(&request, &config, &ext))
-                                    .stream(&stream, file);
+                                    .file(&stream, file);
                                 return vec![]
                             },
                             Err(_) => {
@@ -380,9 +336,8 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                         if let Some(log) = &config.log.success {
                             log.write(&request.method, 200, &request.path);
                         }
-                        return Response::new(StatusCode::_200)
+                        return Response::new(StatusCode::_200, &config.headers)
                             .content_type("html")
-                            .headers(&config.headers)
                             .body(response_dir_html(&path, &request.path, option.time, option.size).as_bytes())
                     }
                     if let Some(log) = &config.log.error {
@@ -399,10 +354,8 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                     }else {
                         moved = format!("{}/", request.path);
                     }
-                    dbg!(&moved);
-                    return Response::new(StatusCode::_301)
+                    return Response::new(StatusCode::_301, &config.headers)
                         .header("location", &moved)
-                        .headers(&config.headers)
                         .body(b"")
                 }
             }else {
@@ -412,11 +365,10 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                             log.write(&request.method, 200, &request.path);
                         }
                         let ext = get_extension(&path);
-                        Response::new(StatusCode::_200)
+                        Response::new(StatusCode::_200, &config.headers)
                             .content_type(&ext)
-                            .headers(&config.headers)
                             .gzip(can_use_gzip(&request, &config, &ext))
-                            .stream(&stream, file);
+                            .file(&stream, file);
                         return vec![]
                     },
                     Err(_) => {
@@ -435,11 +387,10 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                         if let Some(log) = &config.log.success {
                             log.write(&request.method, 200, &request.path);
                         }
-                        Response::new(StatusCode::_200)
+                        Response::new(StatusCode::_200, &config.headers)
                             .content_type(&fallback.ext)
-                            .headers(&config.headers)
                             .gzip(can_use_gzip(&request, &config, &fallback.ext))
-                            .stream(&stream, fallback.file);
+                            .file(&stream, fallback.file);
                         return vec![]
                     },
                     Err(_) => {
@@ -510,26 +461,21 @@ pub fn fill_path(root: &str, file: &str) -> String {
 
 fn output_404(config: &ServerConfig) -> Vec<u8> {
 
-    let res = Response::new(StatusCode::_404)
-        .headers(&config.headers);
+    let res = Response::new(StatusCode::_404, &config.headers);
 
     if let Some(file) = &config.error._404 {
         match fs::read(&file) {
             Ok(data) => {
                 return res
                     .content_type(get_extension(file))
-                    .body(&data[..])
+                    .body(&data[..]);
             },
             Err(_) => {
-                return res
-                    .content_type("txt")
-                    .body(b"404");
+                return res.text("404");
             }
         }
     }else {
-        return res
-            .content_type("txt")
-            .body(b"404")
+        return res.text("404");
     }
 
 }
@@ -537,8 +483,7 @@ fn output_404(config: &ServerConfig) -> Vec<u8> {
 
 fn output_500(config: &ServerConfig) -> Vec<u8> {
 
-    let res = Response::new(StatusCode::_500)
-        .headers(&config.headers);
+    let res = Response::new(StatusCode::_500, &config.headers);
 
     if let Some(file) = &config.error._500 {
         match fs::read(&file) {
@@ -548,15 +493,11 @@ fn output_500(config: &ServerConfig) -> Vec<u8> {
                     .body(&data[..])
             },
             Err(_) => {
-                return res
-                    .content_type("txt")
-                    .body(b"500");
+                return res.text("500");
             }
         }
     }else {
-        return res
-            .content_type("txt")
-            .body(b"500")
+        return res.text("500")
     }
 
 }
@@ -576,14 +517,6 @@ fn get_extension(path: &str) -> &str {
         ""
     }
 
-}
-
-#[test]
-fn test_get_extension() {
-    assert_eq!(get_extension("index.html"), "html");
-    assert_eq!(get_extension("/index/index.rs"), "rs");
-    assert_eq!(get_extension(""), "");
-    assert_eq!(get_extension("index"), "");
 }
 
 
@@ -722,6 +655,14 @@ fn bytes_to_size(bytes: f64) -> String {
     format!("{:.2} {}", bytes / k.powi(i), sizes[i as usize])
 }
 
+
+#[test]
+fn test_get_extension() {
+    assert_eq!(get_extension("index.html"), "html");
+    assert_eq!(get_extension("/index/index.rs"), "rs");
+    assert_eq!(get_extension(""), "");
+    assert_eq!(get_extension("index"), "");
+}
 
 #[test]
 fn test_bytes_to_size() {
