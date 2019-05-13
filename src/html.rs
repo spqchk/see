@@ -9,7 +9,7 @@ pub const TEMPLATE: &'static str = r#"<!DOCTYPE html>
     <title>Index of {title}</title>
     <style>
         body {
-            font-family: "microsoft yahei", "Helvetica Neue", "pingfang sc";
+            font-family: "pingfang sc", "microsoft yahei", "Helvetica Neue";
             padding: 0 24px 0;
         }
         h1 {

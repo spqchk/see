@@ -110,16 +110,56 @@ fn main() {
     }
 
     let mut tasks: Vec<JoinHandle<()>> = vec![];
+    let start = app.start();
+
     for config in configs {
-        let c = std::thread::spawn(move || {
-            bind_tcp(config);
+
+        let task = std::thread::spawn(move || {
+
+            let listen = config[0].listen;
+            let address = format!("0.0.0.0:{}", listen);
+
+            match TcpListener::bind(&address) {
+                Ok(listener) => {
+                    if start {
+                        println!("Serving path   : {}", &config[0].root);
+                        if listen != 80 {
+                            println!("Binding address: http://127.0.0.1:{}", listen);
+                        }else {
+                            println!("Binding address: http://127.0.0.1");
+                        }
+                    }
+                    incoming(listener, config);
+                },
+                Err(err) => {
+                    eprintln!("{:?}", err);
+                    eprintln!("Binding {} failed", address);
+                    process::exit(1);
+                }
+            };
+
         });
-        tasks.push(c);
+
+        tasks.push(task);
+
     }
+
     for task in tasks {
         task.join().unwrap();
     }
 
+}
+
+
+fn incoming(listener: TcpListener, configs: Arc<Vec<ServerConfig>>) {
+    for stream in listener.incoming() {
+        if let Ok(stream) = stream {
+            let configs = configs.clone();
+            std::thread::spawn(|| {
+                handle_connection(stream, configs);
+            });
+        }
+    }
 }
 
 
@@ -174,39 +214,6 @@ fn stop_daemon() {
             eprintln!("open \"{}\" failed, {:?}", PID_PATH, e.to_string());
         }
     }
-}
-
-
-fn bind_tcp(configs: Arc<Vec<ServerConfig>>) {
-
-    let listen = configs[0].listen;
-    let address = format!("0.0.0.0:{}", listen);
-    let listener = TcpListener::bind(&address);
-
-    match listener {
-        Ok(listener) => {
-
-//            if let Err(err) = listener.set_nonblocking(true) {
-//                eprintln!("{:?}", err);
-//                process::exit(1);
-//            }
-
-            for stream in listener.incoming() {
-                if let Ok(stream) = stream {
-                    let configs = configs.clone();
-                    std::thread::spawn(|| {
-                        handle_connection(stream, configs);
-                    });
-                }
-            }
-        },
-        Err(err) => {
-            eprintln!("{:?}", err);
-            eprintln!("Binding {} failed", address);
-            process::exit(1);
-        }
-    }
-
 }
 
 
