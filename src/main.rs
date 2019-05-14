@@ -231,37 +231,45 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
     let req = Request::new(&buffer[..]);
 
     if let Some(host) = req.headers.get("host") {
+        let mut index = None;
         let host = &host.replace(&format!(":{}", configs[0].listen), "");
-        'configs: for config in configs.iter() {
+        'configs: for (i, config) in configs.iter().enumerate() {
             if let Some(hosts) = &config.hosts {
                 for val in hosts {
                     if val == host {
-                        res = output(&req, &config, &stream);
+                        index = Some(i);
                         break 'configs;
                     }
                 }
             }
         }
-    }
-
-    if res.len() == 0 {
-        for conf in configs.iter() {
-            if let None = conf.hosts {
-                res = output(&req, &conf, &stream);
-                break;
+        if let None = index {
+            for (i, conf) in configs.iter().enumerate() {
+                if let None = conf.hosts {
+                    index = Some(i);
+                    break;
+                }
             }
         }
+        if let Some(i) = index {
+            res = output(req, &configs[i], &stream);
+        }
+    }else {
+        // A Host header field must be sent in all HTTP/1.1 request messages
+        res = Response::new(StatusCode::_400, &vec![])
+            .text("400");
     }
 
     if res.len() != 0 {
         stream.write(&res).unwrap();
     }
+
     stream.flush().unwrap();
 
 }
 
 
-fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u8> {
+fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u8> {
 
     // Not allowed method
     let allow = config.methods.iter().find(|item| {
@@ -273,15 +281,6 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
         }
         return Response::new(StatusCode::_405, &config.headers)
             .text("405");
-    }
-
-    // A Host header field must be sent in all HTTP/1.1 request messages
-    if let None = request.headers.get("host") {
-        if let Some(log) = &config.log.error {
-            log.write(&request.method, 400, &request.path);
-        }
-        return Response::new(StatusCode::_400, &config.headers)
-            .text("400");
     }
 
     if let Some(auth) = &config.auth {
@@ -323,7 +322,7 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                         .rewrite(rewrite.url.to_string());
                 }
                 RewriteType::Path => {
-//                    request.path = rewrite.url.to_string();
+                    request.path = rewrite.url.to_string();
                 }
             }
         }
@@ -348,17 +347,16 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                                     log.write(&request.method, 200, &request.path);
                                 }
                                 let ext = get_extension(index);
-                                Response::new(StatusCode::_200, &config.headers)
+                                return Response::new(StatusCode::_200, &config.headers)
                                     .content_type(ext)
                                     .gzip(can_use_gzip(&request, &config, &ext))
                                     .file(&stream, file);
-                                return vec![]
                             },
                             Err(_) => {
                                 if let Some(log) = &config.log.error {
                                     log.write(&request.method, 404, &request.path);
                                 }
-                                return output_404(&config);
+                                return output_404(&config, &stream);
                             }
                         }
                     }
@@ -367,13 +365,12 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                             log.write(&request.method, 200, &request.path);
                         }
                         return Response::new(StatusCode::_200, &config.headers)
-                            .content_type("html")
-                            .body(response_dir_html(&path, &request.path, option.time, option.size).as_bytes())
+                            .html(response_dir_html(&path, &request.path, option.time, option.size));
                     }
                     if let Some(log) = &config.log.error {
                         log.write(&request.method, 404, &request.path);
                     }
-                    return output_404(&config);
+                    return output_404(&config, &stream);
                 }else {
                     if let Some(log) = &config.log.success {
                         log.write(&request.method, 301, &request.path);
@@ -394,17 +391,16 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                             log.write(&request.method, 200, &request.path);
                         }
                         let ext = get_extension(&path);
-                        Response::new(StatusCode::_200, &config.headers)
+                        return Response::new(StatusCode::_200, &config.headers)
                             .content_type(&ext)
                             .gzip(can_use_gzip(&request, &config, &ext))
                             .file(&stream, file);
-                        return vec![]
                     },
                     Err(_) => {
                         if let Some(log) = &config.log.error {
                             log.write(&request.method, 500, &request.path);
                         }
-                        return output_500(&config);
+                        return output_500(&config, &stream);
                     }
                 }
             }
@@ -416,24 +412,23 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                         if let Some(log) = &config.log.success {
                             log.write(&request.method, 200, &request.path);
                         }
-                        Response::new(StatusCode::_200, &config.headers)
+                        return Response::new(StatusCode::_200, &config.headers)
                             .content_type(&fallback.ext)
                             .gzip(can_use_gzip(&request, &config, &fallback.ext))
                             .file(&stream, fallback.file);
-                        return vec![]
                     },
                     Err(_) => {
                         if let Some(log) = &config.log.error {
                             log.write(&request.method, 404, &request.path);
                         }
-                        return output_404(&config);
+                        return output_404(&config, &stream);
                     }
                 }
             }else {
                 if let Some(log) = &config.log.error {
                     log.write(&request.method, 404, &request.path);
                 }
-                return output_404(&config);
+                return output_404(&config, &stream);
             }
         }
     };
@@ -488,16 +483,16 @@ pub fn fill_path(root: &str, file: &str) -> String {
 }
 
 
-fn output_404(config: &ServerConfig) -> Vec<u8> {
+fn output_404(config: &ServerConfig, stream: &TcpStream) -> Vec<u8> {
 
     let res = Response::new(StatusCode::_404, &config.headers);
 
     if let Some(file) = &config.error._404 {
-        match fs::read(&file) {
-            Ok(data) => {
+        match File::open(&file) {
+            Ok(f) => {
                 return res
                     .content_type(get_extension(file))
-                    .body(&data[..]);
+                    .file(&stream, f);
             },
             Err(_) => {
                 return res.text("404");
@@ -510,16 +505,16 @@ fn output_404(config: &ServerConfig) -> Vec<u8> {
 }
 
 
-fn output_500(config: &ServerConfig) -> Vec<u8> {
+fn output_500(config: &ServerConfig, stream: &TcpStream) -> Vec<u8> {
 
     let res = Response::new(StatusCode::_500, &config.headers);
 
     if let Some(file) = &config.error._500 {
-        match fs::read(&file) {
-            Ok(data) => {
+        match File::open(&file) {
+            Ok(f) => {
                 return res
                     .content_type(get_extension(file))
-                    .body(&data[..])
+                    .file(&stream, f);
             },
             Err(_) => {
                 return res.text("500");

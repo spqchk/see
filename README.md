@@ -61,7 +61,7 @@ Complete configuration file example:
     rewrite:              # Default 302 
       /img: /images 301
       /google: https://google.com 302
-      /public: ./assets path
+      /public: /assets path
     gzip:                 # File type that needs to be compressed
       - html
       - css

@@ -70,7 +70,6 @@ impl Response {
     pub fn header(mut self, key: &str, value:  &str) -> Response {
 
         self.header.insert(key.to_string(), value.to_string());
-
         self
 
     }
@@ -164,18 +163,7 @@ impl Response {
     pub fn rewrite(mut self, location: String) -> Vec<u8> {
 
         self.header.insert("location".to_string(), location);
-
-        let mut res = String::new();
-
-        let _ = write!(res, "{} {}\r\n", self.version, self.status);
-
-        for (key, value) in self.header.iter() {
-            let _ = write!(res, "{}: {}\r\n", key, value);
-        }
-
-        res.push_str("\r\n");
-
-        res.as_bytes().to_vec()
+        self.build()
 
     }
 
@@ -183,6 +171,20 @@ impl Response {
 
         self.body = text.as_bytes().to_vec();
         self.header.insert("Content-Type".to_string(), "text/plain".to_string());
+        self.build()
+
+    }
+
+    pub fn html(mut self, html: String) -> Vec<u8> {
+
+        self.body = html.as_bytes().to_vec();
+        self.header.insert("Content-Type".to_string(), "text/html".to_string());
+        self.build()
+
+    }
+
+    fn build(mut self) -> Vec<u8> {
+       
         self.header.insert("Content-Length".to_string(), self.body.len().to_string());
 
         let mut res = String::new();
@@ -199,35 +201,7 @@ impl Response {
 
     }
 
-    pub fn body(mut self, data: &[u8]) -> Vec<u8> {
-
-        if self.gzip {
-            if let Ok(d) = gzip_min(data) {
-                self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
-                self.body = d;
-            }else {
-                self.body = data.to_vec();
-            }
-        }else {
-            self.body = data.to_vec();
-        }
-        self.header.insert("Content-Length".to_string(), self.body.len().to_string());
-
-        let mut res = String::new();
-
-        let _ = write!(res, "{} {}\r\n", self.version, self.status);
-
-        for (key, value) in self.header.iter() {
-            let _ = write!(res, "{}: {}\r\n", key, value);
-        }
-
-        res.push_str("\r\n");
-
-        [&res.as_bytes()[..], &self.body[..]].concat()
-
-    }
-
-    pub fn file(mut self, mut stream: &TcpStream, file: File) {
+    pub fn file(mut self, mut stream: &TcpStream, file: File) -> Vec<u8> {
 
         let meta = file.metadata().unwrap();
         if self.gzip {
@@ -256,6 +230,8 @@ impl Response {
                 break;
             }
         }
+
+        vec![]
 
     }
 

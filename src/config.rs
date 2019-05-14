@@ -97,8 +97,7 @@ impl ServerConfig {
 
         let mut configs: Vec<Vec<ServerConfig>> = vec![];
 
-        let vec = &docs[0].as_vec();
-        let servers = match vec {
+        let servers = match docs[0].as_vec() {
             Some(servers) => servers,
             None => {
                 return Err(String::from("Server should be a list"));
