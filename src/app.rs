@@ -51,7 +51,18 @@ impl App {
             if let Ok(port) = port.parse::<i64>() {
                 Ok(Some(port))
             }else {
-                Err(port)
+                match port.chars().nth(0) {
+                    Some(cha) => {
+                        if cha == '-' {
+                            Ok(None)
+                        }else {
+                            Err(port)
+                        }
+                    }
+                    None => {
+                        Err(port)
+                    }
+                }
             }
         }else {
             Ok(None)
@@ -60,7 +71,6 @@ impl App {
 
     pub fn print_help(&self) {
         print!(r#"{0} version {1}
-{2}
 
 USAGE:
     {0} [OPTIONS] [FLAGS] [--] ...
@@ -77,8 +87,7 @@ OPTIONS:
     start <PORT?>       Quick Start
 "#,
             env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION"),
-            env!("CARGO_PKG_AUTHORS")
+            env!("CARGO_PKG_VERSION")
         );
     }
 

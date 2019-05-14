@@ -19,7 +19,7 @@ use request::Request;
 mod html;
 use html::TEMPLATE;
 mod config;
-use config::{ServerConfig, DirectoryOption};
+use config::{ServerConfig, DirectoryOption, RewriteType};
 mod log;
 mod app;
 use app::App;
@@ -122,18 +122,18 @@ fn main() {
             match TcpListener::bind(&address) {
                 Ok(listener) => {
                     if start {
-                        println!("Serving path   : {}", &config[0].root);
+                        println!("Serving path   : \x1b[92m{}\x1b[0m",  &config[0].root);
                         if listen != 80 {
-                            println!("Binding address: http://127.0.0.1:{}", listen);
+                            println!("Serving address: \x1b[93mhttp://127.0.0.1:{}\x1b[0m",  listen);
                         }else {
-                            println!("Binding address: http://127.0.0.1");
+                            println!("Serving address: \x1b[93mhttp://127.0.0.1\x1b[0m");
                         }
                     }
                     incoming(listener, config);
                 },
                 Err(err) => {
-                    eprintln!("{:?}", err);
                     eprintln!("Binding {} failed", address);
+                    eprintln!("{:?}", err);
                     process::exit(1);
                 }
             };
@@ -271,7 +271,6 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
         if let Some(log) = &config.log.error {
             log.write(&request.method, 405, &request.path);
         }
-
         return Response::new(StatusCode::_405, &config.headers)
             .text("405");
     }
@@ -306,6 +305,30 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
         }
     }
 
+    if let Some(rewrite) = &config.rewrite {
+        if let Some(rewrite) = rewrite.get(&request.path) {
+            match rewrite.status {
+                RewriteType::_301 => {
+                    if let Some(log) = &config.log.success {
+                        log.write(&request.method, 301, &request.path);
+                    }
+                    return Response::new(StatusCode::_301, &config.headers)
+                        .rewrite(rewrite.url.to_string());
+                }
+                RewriteType::_302 => {
+                    if let Some(log) = &config.log.success {
+                        log.write(&request.method, 302, &request.path);
+                    }
+                    return Response::new(StatusCode::_302, &config.headers)
+                        .rewrite(rewrite.url.to_string());
+                }
+                RewriteType::Path => {
+//                    request.path = rewrite.url.to_string();
+                }
+            }
+        }
+    }
+
     let cur_path = String::from(".") + &request.path;
     let path_buff = Path::new(&config.root)
         .join(&cur_path);
@@ -316,7 +339,7 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
     match fs::metadata(&path) {
         Ok(meta) => {
             if meta.is_dir() {
-                if get_last_string(&request.path) == String::from("/") {
+                if request.path.chars().last().unwrap_or('.') == '/' {
                     if let Some(index) = &config.index {
                         let index_path = fill_path(&path, &index);
                         match File::open(index_path) {
@@ -355,15 +378,14 @@ fn output(request: &Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u
                     if let Some(log) = &config.log.success {
                         log.write(&request.method, 301, &request.path);
                     }
-                    let moved;
+                    let aims;
                     if let Some(query) = &request.query {
-                        moved = format!("{}/?{}", request.path, query);
+                        aims = format!("{}/?{}", request.path, query);
                     }else {
-                        moved = format!("{}/", request.path);
+                        aims = format!("{}/", request.path);
                     }
                     return Response::new(StatusCode::_301, &config.headers)
-                        .header("location", &moved)
-                        .body(b"")
+                        .rewrite(aims);
                 }
             }else {
                 match File::open(&path) {
@@ -522,18 +544,6 @@ fn get_extension(path: &str) -> &str {
         }
     } else {
         ""
-    }
-
-}
-
-
-// Get the last character
-fn get_last_string(path: &str) -> String {
-
-    if let Some(last) = path.chars().last() {
-        last.to_string()
-    }else {
-        String::from("")
     }
 
 }

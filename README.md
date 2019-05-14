@@ -58,6 +58,10 @@ Complete configuration file example:
     header:               # Header in response
       Access-Control-Allow-Origin: "*"
       Set-Cookie: "12345"
+    rewrite:              # Default 302 
+      /img: /images 301
+      /google: https://google.com 302
+      /public: ./assets path
     gzip:                 # File type that needs to be compressed
       - html
       - css
@@ -79,12 +83,3 @@ Complete configuration file example:
 # More server ...
 ```
 
-## Todo
-
-* [ ] Async/response
-* [ ] HTTP stream
-* [ ] Gzip compress
-* [ ] HTTPS / HTTP2
-* [ ] Proxy
-* [x] Bind multiple domain names
-* [ ] Bind multiple ports

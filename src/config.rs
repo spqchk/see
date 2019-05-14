@@ -6,6 +6,7 @@ extern crate base64;
 use std::fs;
 use std::sync::Arc;
 use std::result::Result;
+use std::collections::HashMap;
 use crate::log::Log;
 use base64::encode;
 use crate::fill_path;
@@ -21,6 +22,7 @@ pub struct ServerConfig {
     pub directory: Option<DirectoryOption>,
     pub index: Option<String>,
     pub headers: Vec<Header>,
+    pub rewrite: Option<HashMap<String, Rewrite>>,
     pub extensions: Option<Vec<String>>,
     pub methods: Vec<String>,
     pub auth: Option<String>,
@@ -39,6 +41,19 @@ pub struct DirectoryOption {
 pub struct Header {
     pub key: String,
     pub value: String
+}
+
+#[derive(Debug)]
+pub struct Rewrite {
+    pub url: String,
+    pub status: RewriteType
+}
+
+#[derive(Debug)]
+pub enum RewriteType {
+    _301,
+    _302,
+    Path
 }
 
 // Error page
@@ -192,6 +207,43 @@ impl ServerConfig {
                 None => vec![]
             };
 
+            let rewrite = match server["rewrite"].as_hash() {
+                Some(rewrite) => {
+                    let mut hash = HashMap::new();
+                    for (key, value) in rewrite.iter() {
+                        if let (Some(k), Some(v)) = (key.as_str(), value.as_str()){
+                            let mut r = v.split_whitespace();
+                            let url = match r.next() {
+                                Some(url) => url.to_string(),
+                                None => {
+                                    return Err(String::from("Could not find redirected url"));
+                                }
+                            };
+                            let status = match r.next() {
+                                Some(aims) => match aims {
+                                    "301" => RewriteType::_301,
+                                    "302" => RewriteType::_302,
+                                    "path" => RewriteType::Path,
+                                    _ => {
+                                        return Err(format!("Wrong redirect type \"{}\"", aims));
+                                    }
+                                },
+                                None => RewriteType::_302
+                            };
+                            hash.insert(
+                                k.to_string(),
+                                Rewrite {
+                                    url,
+                                    status
+                                }
+                            );
+                        }
+                    }
+                    Some(hash)
+                },
+                None => None
+            };
+
             let extensions = match server["extension"].as_vec() {
                 Some(extensions) => {
                     let mut vec: Vec<String> = vec![];
@@ -266,6 +318,7 @@ impl ServerConfig {
                 directory,
                 index,
                 headers,
+                rewrite,
                 extensions,
                 methods,
                 error: Error {

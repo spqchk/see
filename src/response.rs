@@ -22,6 +22,7 @@ pub struct Response {
 pub enum StatusCode {
     _200,
     _301,
+    _302,
     _400,
     _401,
     _404,
@@ -44,6 +45,7 @@ impl Response {
             StatusCode::_200 => 200,
             StatusCode::_400 => 400,
             StatusCode::_301 => 301,
+            StatusCode::_302 => 302,
             StatusCode::_401 => 401,
             StatusCode::_404 => 404,
             StatusCode::_405 => 405,
@@ -156,6 +158,24 @@ impl Response {
 
         self.gzip = open;
         self
+
+    }
+
+    pub fn rewrite(mut self, location: String) -> Vec<u8> {
+
+        self.header.insert("location".to_string(), location);
+
+        let mut res = String::new();
+
+        let _ = write!(res, "{} {}\r\n", self.version, self.status);
+
+        for (key, value) in self.header.iter() {
+            let _ = write!(res, "{}: {}\r\n", key, value);
+        }
+
+        res.push_str("\r\n");
+
+        res.as_bytes().to_vec()
 
     }
 
