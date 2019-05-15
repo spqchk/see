@@ -2,6 +2,7 @@
 
 extern crate libflate;
 use crate::config::Header;
+use crate::config::CompressType;
 use std::collections::HashMap;
 use std::fmt::Write as FmtWrite;
 use libflate::gzip;
@@ -16,7 +17,7 @@ pub struct Response {
     status: i32,
     header: HashMap<String, String>,
     body: Vec<u8>,
-    gzip: bool
+    compress: CompressType
 }
 
 pub enum StatusCode {
@@ -25,6 +26,7 @@ pub enum StatusCode {
     _302,
     _400,
     _401,
+    _403,
     _404,
     _405,
     _500
@@ -43,10 +45,11 @@ impl Response {
 
         response.status = match status {
             StatusCode::_200 => 200,
-            StatusCode::_400 => 400,
             StatusCode::_301 => 301,
             StatusCode::_302 => 302,
+            StatusCode::_400 => 400,
             StatusCode::_401 => 401,
+            StatusCode::_403 => 403,
             StatusCode::_404 => 404,
             StatusCode::_405 => 405,
             StatusCode::_500 => 500
@@ -153,16 +156,16 @@ impl Response {
 
     }
 
-    pub fn gzip(mut self, open: bool) -> Response {
+    pub fn compress(mut self, mode: CompressType) -> Response {
 
-        self.gzip = open;
+        self.compress = mode;
         self
 
     }
 
     pub fn rewrite(mut self, location: String) -> Vec<u8> {
 
-        self.header.insert("location".to_string(), location);
+        self.header.insert("Location".to_string(), location);
         self.build()
 
     }
@@ -203,11 +206,12 @@ impl Response {
 
     pub fn file(mut self, mut stream: &TcpStream, file: File) -> Vec<u8> {
 
-        let meta = file.metadata().unwrap();
-        if self.gzip {
-            self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
-        }
+//        if self.gzip {
+//            self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
+//        }
 //        self.header.insert("Transfer-Encoding".to_string(), "chunked".to_string());
+
+        let meta = file.metadata().unwrap();
         self.header.insert("Content-Length".to_string(), format!("{}", meta.len()));
 
         let mut res = String::new();
@@ -222,7 +226,9 @@ impl Response {
             let mut render = BufReader::new(&file);
             if let Ok(data) = render.fill_buf() {
                 if data.len() != 0 {
-                    stream.write(data).unwrap();
+                    if let Err(_) = stream.write(data) {
+                        break;
+                    }
                 }else {
                     break;
                 }

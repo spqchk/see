@@ -18,7 +18,7 @@ pub struct ServerConfig {
     pub hosts: Option<Vec<String>>,
     pub listen: i64,
     pub root: String,
-    pub gzip: Option<Vec<String>>,
+    pub compress: Option<Compress>,
     pub directory: Option<DirectoryOption>,
     pub index: Option<String>,
     pub headers: Vec<Header>,
@@ -56,6 +56,25 @@ pub enum RewriteType {
     Path
 }
 
+#[derive(Debug)]
+pub struct Compress {
+    pub mode: CompressType,
+    pub extensions: Option<Vec<String>>
+}
+
+#[derive(Debug)]
+pub enum CompressType {
+    Gzip,
+    Br,
+    None
+}
+
+impl Default for CompressType {
+    fn default() -> Self {
+        CompressType::None
+    }
+}
+
 // Error page
 #[derive(Debug, Default)]
 pub struct Error {
@@ -70,6 +89,7 @@ pub struct Recording {
     pub error: Option<Log>
 }
 
+pub const DEFAULT_METHODS: [&str; 3] = ["GET", "HEAD", "OPTIONS"];
 
 impl ServerConfig {
 
@@ -141,16 +161,37 @@ impl ServerConfig {
                 }
             };
 
-            let gzip = match server["gzip"].as_vec() {
-                Some(extensions) => {
-                    let mut vec: Vec<String> = vec![];
-                    for item in extensions.iter() {
-                        if let Some(ext) = item.as_str() {
-                            vec.push(ext.to_string());
+            let compress = match server["compress"].as_hash() {
+                Some(_) => {
+                    let mode = match server["compress"]["mode"].as_str() {
+                        Some(mode) => match mode {
+                            "gzip" => CompressType::Gzip,
+                            "br" => CompressType::Br,
+                            _ => {
+                                return Err(format!("Wrong compression mode \"{}\", optional value: \"gzip\" \"br\"", mode));
+                            }
+                        },
+                        None => {
+                            return Err(String::from("Can't parse \"compress\" \"mode\""));
                         }
                     };
-                    Some(vec)
-                },
+                    let extensions = match server["compress"]["extension"].as_vec() {
+                        Some(extensions) => {
+                            let mut vec: Vec<String> = vec![];
+                            for item in extensions.iter() {
+                                if let Some(ext) = item.as_str() {
+                                    vec.push(ext.to_string());
+                                }
+                            };
+                            Some(vec)
+                        },
+                        None => None
+                    };
+                    Some(Compress {
+                        mode,
+                        extensions
+                    })
+                }
                 None => None
             };
 
@@ -256,10 +297,10 @@ impl ServerConfig {
                 None => None
             };
 
-            let mut methods = vec![
-                String::from("GET"),
-                String::from("HEAD"),
-            ];
+            let mut methods: Vec<String> = DEFAULT_METHODS
+                .iter()
+                .map(|m| String::from(*m))
+                .collect();
             if let Some(vec) = server["method"].as_vec() {
                 for item in vec.iter() {
                     if let Some(method) = item.as_str() {
@@ -313,7 +354,7 @@ impl ServerConfig {
                 hosts,
                 listen,
                 root,
-                gzip,
+                compress,
                 directory,
                 index,
                 headers,

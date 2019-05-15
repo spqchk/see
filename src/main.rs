@@ -19,7 +19,13 @@ use request::Request;
 mod html;
 use html::TEMPLATE;
 mod config;
-use config::{ServerConfig, DirectoryOption, RewriteType};
+use config::{
+    ServerConfig,
+    DirectoryOption,
+    RewriteType,
+    CompressType,
+    DEFAULT_METHODS
+};
 mod log;
 mod app;
 use app::App;
@@ -64,10 +70,10 @@ fn main() {
             time: true,
             size: true
         });
-        config.methods = vec![
-            String::from("GET"),
-            String::from("HEAD"),
-        ];
+        config.methods = DEFAULT_METHODS
+            .iter()
+            .map(|m| String::from(*m))
+            .collect();
         config.listen = match app.port() {
             Ok(result) => {
                 match result {
@@ -227,7 +233,7 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
         return;
     }
 
-    let mut res: Vec<u8> = vec![];
+    let mut res: Vec<u8>;
     let req = Request::new(&buffer[..]);
 
     if let Some(host) = req.headers.get("host") {
@@ -253,6 +259,9 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
         }
         if let Some(i) = index {
             res = output(req, &configs[i], &stream);
+        }else {
+            res = Response::new(StatusCode::_403, &vec![])
+                .text("403");
         }
     }else {
         // A Host header field must be sent in all HTTP/1.1 request messages
@@ -272,8 +281,8 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
 fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Vec<u8> {
 
     // Not allowed method
-    let allow = config.methods.iter().find(|item| {
-        return **item == request.method;
+    let allow = config.methods.iter().find(|m| {
+        return **m == request.method;
     });
     if let None = allow {
         if let Some(log) = &config.log.error {
@@ -349,14 +358,14 @@ fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Ve
                                 let ext = get_extension(index);
                                 return Response::new(StatusCode::_200, &config.headers)
                                     .content_type(ext)
-                                    .gzip(can_use_gzip(&request, &config, &ext))
+                                    .compress(can_compress(&request, &config, &ext))
                                     .file(&stream, file);
                             },
                             Err(_) => {
                                 if let Some(log) = &config.log.error {
                                     log.write(&request.method, 404, &request.path);
                                 }
-                                return output_404(&config, &stream);
+                                return output_error(&config, &stream, StatusCode::_404);
                             }
                         }
                     }
@@ -370,7 +379,7 @@ fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Ve
                     if let Some(log) = &config.log.error {
                         log.write(&request.method, 404, &request.path);
                     }
-                    return output_404(&config, &stream);
+                    return output_error(&config, &stream, StatusCode::_404);
                 }else {
                     if let Some(log) = &config.log.success {
                         log.write(&request.method, 301, &request.path);
@@ -393,14 +402,14 @@ fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Ve
                         let ext = get_extension(&path);
                         return Response::new(StatusCode::_200, &config.headers)
                             .content_type(&ext)
-                            .gzip(can_use_gzip(&request, &config, &ext))
+                            .compress(can_compress(&request, &config, &ext))
                             .file(&stream, file);
                     },
                     Err(_) => {
                         if let Some(log) = &config.log.error {
                             log.write(&request.method, 500, &request.path);
                         }
-                        return output_500(&config, &stream);
+                        return output_error(&config, &stream, StatusCode::_500);
                     }
                 }
             }
@@ -414,21 +423,21 @@ fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Ve
                         }
                         return Response::new(StatusCode::_200, &config.headers)
                             .content_type(&fallback.ext)
-                            .gzip(can_use_gzip(&request, &config, &fallback.ext))
+                            .compress(can_compress(&request, &config, &fallback.ext))
                             .file(&stream, fallback.file);
                     },
                     Err(_) => {
                         if let Some(log) = &config.log.error {
                             log.write(&request.method, 404, &request.path);
                         }
-                        return output_404(&config, &stream);
+                        return output_error(&config, &stream, StatusCode::_404);
                     }
                 }
             }else {
                 if let Some(log) = &config.log.error {
                     log.write(&request.method, 404, &request.path);
                 }
-                return output_404(&config, &stream);
+                return output_error(&config, &stream, StatusCode::_404);
             }
         }
     };
@@ -436,33 +445,34 @@ fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Ve
 }
 
 
-fn can_use_gzip(request: &Request, config: &ServerConfig, ext: &str) -> bool {
+fn can_compress(request: &Request, config: &ServerConfig, ext: &str) -> CompressType {
 
-    if let Some(exts) = &config.gzip {
-        let allow = exts.iter().find(|item| {
-            return *item == ext
-        });
-        if let None = allow {
-            return false
+    if let Some(compress) = &config.compress {
+        if let Some(exts) = &compress.extensions {
+            let allow = exts.iter().find(|item| {
+                return *item == ext
+            });
+            if let None = allow {
+                return CompressType::None;
+            }
+            let encoding = if let Some(val) = request.headers.get("accept-encoding") {
+                val
+            }else {
+                return CompressType::None;
+            };
+
+            let ways: Vec<&str> = encoding.split(", ").collect();
+            for way in ways {
+                match way {
+                    "gzip" => return CompressType::Gzip,
+                    "br" => return CompressType::Br,
+                    _ => {}
+                }
+            }
         }
-    }else {
-        return false
     }
 
-    let encoding = if let Some(val) = request.headers.get("accept-encoding") {
-        val
-    }else {
-        return false
-    };
-
-    let ways: Vec<&str> = encoding.split(", ").collect();
-    for way in ways {
-        if way == "gzip" {
-            return true
-        }
-    }
-
-    return false
+    return CompressType::None;
 
 }
 
@@ -483,45 +493,28 @@ pub fn fill_path(root: &str, file: &str) -> String {
 }
 
 
-fn output_404(config: &ServerConfig, stream: &TcpStream) -> Vec<u8> {
+fn output_error(config: &ServerConfig, stream: &TcpStream, status: StatusCode) -> Vec<u8> {
 
-    let res = Response::new(StatusCode::_404, &config.headers);
+    let (path, text) = match status {
+        StatusCode::_404 => (&config.error._404, "404"),
+        _ => (&config.error._500, "500")
+    };
 
-    if let Some(file) = &config.error._404 {
-        match File::open(&file) {
+    let res = Response::new(status, &config.headers);
+
+    if let Some(path) = path {
+        match File::open(&path) {
             Ok(f) => {
                 return res
-                    .content_type(get_extension(file))
+                    .content_type(get_extension(path))
                     .file(&stream, f);
             },
             Err(_) => {
-                return res.text("404");
+                return res.text(text);
             }
         }
     }else {
-        return res.text("404");
-    }
-
-}
-
-
-fn output_500(config: &ServerConfig, stream: &TcpStream) -> Vec<u8> {
-
-    let res = Response::new(StatusCode::_500, &config.headers);
-
-    if let Some(file) = &config.error._500 {
-        match File::open(&file) {
-            Ok(f) => {
-                return res
-                    .content_type(get_extension(file))
-                    .file(&stream, f);
-            },
-            Err(_) => {
-                return res.text("500");
-            }
-        }
-    }else {
-        return res.text("500")
+        return res.text(text);
     }
 
 }

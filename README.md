@@ -60,11 +60,13 @@ Complete configuration file example:
       Set-Cookie: "12345"
     rewrite:              # Default 302 
       /img: /images 301
-      /google: https://google.com 302
-      /public: /assets path
-    gzip:                 # File type that needs to be compressed
-      - html
-      - css
+      /url: https://example.com 302
+      /html: /index.html path
+    compress:             # File type that needs to be compressed
+      mode: gzip
+      extension:
+        - css
+        - js
     method:               # Method of allowing requests
       - POST
       - PUT
@@ -78,8 +80,8 @@ Complete configuration file example:
       404: 404.html
       500: 500.html
     log:                  # Log save location
-      error: /logs/domain.error.log
-      success: /logs/domain.success.log
+      error: /logs/error.log
+      success: /logs/success.log
 # More server ...
 ```
 
