@@ -28,6 +28,9 @@ use config::{
 mod log;
 mod app;
 use app::App;
+mod pool;
+use pool::ThreadPool;
+
 
 #[cfg(target_os = "macos")]
 static PID_PATH: &str = "/usr/local/var/run/see.pid";
@@ -38,6 +41,7 @@ static PID_PATH: &str = "./see.pid";
 
 const DEFAULT_CONFIG_PATH: &str = "config.yml";
 const DEFAULT_PORT: i64 = 80;
+const THREAD_POOL_MAX: usize = 125;
 
 fn main() {
 
@@ -157,14 +161,18 @@ fn main() {
 
 
 fn incoming(listener: TcpListener, configs: Arc<Vec<ServerConfig>>) {
+
+    let pool = ThreadPool::new(THREAD_POOL_MAX);
+
     for stream in listener.incoming() {
         if let Ok(stream) = stream {
             let configs = configs.clone();
-            std::thread::spawn(|| {
+            pool.execute(|| {
                 handle_connection(stream, configs);
             });
         }
     }
+
 }
 
 
