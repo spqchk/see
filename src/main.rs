@@ -1,7 +1,6 @@
 
 
 extern crate chrono;
-use std::u8;
 use std::sync::Arc;
 use std::{fs, fs::File};
 use std::env;
@@ -228,13 +227,16 @@ fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
 
-    if u8::min_value() == buffer[0] {
+    let mut res: Vec<u8>;
+    let req = if let Ok(req) = Request::new(&buffer) {
+        req
+    }else {
+        res = Response::new(StatusCode::_400, &vec![])
+            .text("400");
+        stream.write(&res).unwrap();
         stream.flush().unwrap();
         return;
-    }
-
-    let mut res: Vec<u8>;
-    let req = Request::new(&buffer[..]);
+    };
 
     if let Some(host) = req.headers.get("host") {
         let mut index = None;
@@ -392,7 +394,7 @@ fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Ve
                     }
                     let aims;
                     if let Some(query) = &request.query {
-                        aims = format!("{}/?{}", request.path, query);
+                        aims = format!("{}/{}", request.path, query);
                     }else {
                         aims = format!("{}/", request.path);
                     }
