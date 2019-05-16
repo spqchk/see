@@ -7,6 +7,7 @@ use std::env;
 use std::{process, process::Command};
 use std::path::Path;
 use std::io::prelude::*;
+use std::io::BufReader;
 use std::fmt::Write as FmtWrite;
 use std::net::{TcpStream, TcpListener};
 use std::thread::JoinHandle;
@@ -232,8 +233,17 @@ fn stop_daemon() {
 
 fn handle_connection(mut stream: TcpStream, configs: Arc<Vec<ServerConfig>>) {
 
-    let mut buffer = [0; 512];
-    stream.read(&mut buffer).unwrap();
+    // Default 8k
+    let mut reader = BufReader::new(&stream);
+    let buffer = if let Ok(buffer) = reader.fill_buf() {
+        buffer
+    }else {
+        let res = Response::new(StatusCode::_500, &vec![])
+            .text("500");
+        stream.write(&res).unwrap();
+        stream.flush().unwrap();
+        return;
+    };
 
     let mut res: Vec<u8>;
     let req = if let Ok(req) = Request::new(&buffer) {
