@@ -89,7 +89,7 @@ pub struct Recording {
     pub error: Option<Log>
 }
 
-pub const DEFAULT_METHODS: [&str; 3] = ["GET", "HEAD", "OPTIONS"];
+pub const DEFAULT_METHODS: [&str; 2] = ["GET", "HEAD"];
 
 impl ServerConfig {
 

@@ -288,8 +288,14 @@ fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Ve
         if let Some(log) = &config.log.error {
             log.write(&request.method, 405, &request.path);
         }
-        return Response::new(StatusCode::_405, &config.headers)
-            .text("405");
+        if &request.method == "OPTIONS" {
+            return Response::new(StatusCode::_405, &config.headers)
+                .header("Allow", &config.methods.join(", "))
+                .text("405");
+        }else {
+            return Response::new(StatusCode::_405, &config.headers)
+                .text("405");
+        }
     }
 
     if let Some(auth) = &config.auth {
