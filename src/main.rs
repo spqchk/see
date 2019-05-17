@@ -1,6 +1,14 @@
 
 
 extern crate chrono;
+mod response;
+mod request;
+mod html;
+mod config;
+mod log;
+mod app;
+mod pool;
+mod compress;
 use std::sync::Arc;
 use std::{fs, fs::File};
 use std::env;
@@ -12,24 +20,17 @@ use std::fmt::Write as FmtWrite;
 use std::net::{TcpStream, TcpListener};
 use std::thread::JoinHandle;
 use chrono::{DateTime, Local};
-mod response;
 use response::{StatusCode, Response};
-mod request;
 use request::Request;
-mod html;
 use html::TEMPLATE;
-mod config;
 use config::{
     ServerConfig,
     DirectoryOption,
     RewriteType,
-    CompressType,
+    ContentEncoding,
     DEFAULT_METHODS
 };
-mod log;
-mod app;
 use app::App;
-mod pool;
 use pool::ThreadPool;
 
 
@@ -471,34 +472,56 @@ fn output(mut request: Request, config: &ServerConfig, stream: &TcpStream) -> Ve
 }
 
 
-fn can_compress(request: &Request, config: &ServerConfig, ext: &str) -> CompressType {
+fn can_compress(request: &Request, config: &ServerConfig, ext: &str) -> ContentEncoding {
 
     if let Some(compress) = &config.compress {
         if let Some(exts) = &compress.extensions {
+
             let allow = exts.iter().find(|item| {
                 return *item == ext
             });
             if let None = allow {
-                return CompressType::None;
+                return ContentEncoding::None;
             }
-            let encoding = if let Some(val) = request.headers.get("accept-encoding") {
-                val
-            }else {
-                return CompressType::None;
+
+            let encoding = match request.headers.get("accept-encoding") {
+                Some(val) => val,
+                None => return ContentEncoding::None
             };
 
-            let ways: Vec<&str> = encoding.split(", ").collect();
-            for way in ways {
-                match way {
-                    "gzip" => return CompressType::Gzip,
-                    "br" => return CompressType::Br,
-                    _ => {}
+            let modes: Vec<&str> = encoding.split(", ").collect();
+            match &compress.mode {
+                ContentEncoding::Auto => {
+
+                    for mode in modes {
+                        match mode {
+                            "gzip" => return ContentEncoding::Gzip,
+                            "deflate" => return ContentEncoding::Deflate,
+                            _ => {}
+                        };
+                    }
+
+                },
+                _ => {
+
+                    for mode in modes {
+                        let cur = match mode {
+                            "gzip" => ContentEncoding::Gzip,
+                            "deflate" => ContentEncoding::Deflate,
+                            _ => ContentEncoding::None
+                        };
+                        if cur == compress.mode {
+                            return cur;
+                        }
+                    }
+
                 }
             }
+
         }
     }
 
-    return CompressType::None;
+    return ContentEncoding::None;
 
 }
 

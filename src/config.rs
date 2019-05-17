@@ -58,20 +58,21 @@ pub enum RewriteType {
 
 #[derive(Debug)]
 pub struct Compress {
-    pub mode: CompressType,
+    pub mode: ContentEncoding,
     pub extensions: Option<Vec<String>>
 }
 
-#[derive(Debug)]
-pub enum CompressType {
+#[derive(Debug, PartialEq)]
+pub enum ContentEncoding {
+    Auto,
     Gzip,
-    Br,
+    Deflate,
     None
 }
 
-impl Default for CompressType {
+impl Default for ContentEncoding {
     fn default() -> Self {
-        CompressType::None
+        ContentEncoding::None
     }
 }
 
@@ -165,10 +166,11 @@ impl ServerConfig {
                 Some(_) => {
                     let mode = match server["compress"]["mode"].as_str() {
                         Some(mode) => match mode {
-                            "gzip" => CompressType::Gzip,
-                            "br" => CompressType::Br,
+                            "auto" => ContentEncoding::Auto,
+                            "gzip" => ContentEncoding::Gzip,
+                            "deflate" => ContentEncoding::Deflate,
                             _ => {
-                                return Err(format!("Wrong compression mode \"{}\", optional value: \"gzip\" \"br\"", mode));
+                                return Err(format!("Wrong compression mode \"{}\", optional value: \"auto\" \"gzip\" \"deflate\"", mode));
                             }
                         },
                         None => {

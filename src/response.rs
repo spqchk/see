@@ -1,15 +1,15 @@
 
 
-extern crate libflate;
 use crate::config::Header;
-use crate::config::CompressType;
+use crate::config::ContentEncoding;
 use std::collections::HashMap;
 use std::fmt::Write as FmtWrite;
-use libflate::gzip;
 use std::net::TcpStream;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
+use crate::compress;
+
 
 #[derive(Default, Debug)]
 pub struct Response {
@@ -17,7 +17,7 @@ pub struct Response {
     status: i32,
     header: HashMap<String, String>,
     body: Vec<u8>,
-    compress: CompressType
+    encoding: ContentEncoding
 }
 
 pub enum StatusCode {
@@ -156,9 +156,9 @@ impl Response {
 
     }
 
-    pub fn compress(mut self, mode: CompressType) -> Response {
+    pub fn compress(mut self, encoding: ContentEncoding) -> Response {
 
-        self.compress = mode;
+        self.encoding = encoding;
         self
 
     }
@@ -206,13 +206,38 @@ impl Response {
 
     pub fn file(mut self, mut stream: &TcpStream, file: File) -> Vec<u8> {
 
-//        if self.gzip {
-//            self.header.insert("Content-Encoding".to_string(), "gzip".to_string());
-//        }
-//        self.header.insert("Transfer-Encoding".to_string(), "chunked".to_string());
 
-        let meta = file.metadata().unwrap();
-        self.header.insert("Content-Length".to_string(), format!("{}", meta.len()));
+        match self.encoding {
+            ContentEncoding::Gzip => {
+                self.header.insert(
+                    String::from("Content-Encoding"),
+                    String::from("gzip")
+                );
+            }
+            ContentEncoding::Deflate => {
+                self.header.insert(
+                    String::from("Content-Encoding"),
+                    String::from("deflate")
+                );
+            }
+            _ => {}
+        }
+
+        match self.encoding {
+            ContentEncoding::None => {
+                let meta = file.metadata().unwrap();
+                self.header.insert(
+                    String::from("Content-Length"),
+                    meta.len().to_string()
+                );
+            }
+            _ => {
+                self.header.insert(
+                    String::from("Transfer-Encoding"),
+                    String::from("chunked")
+                );
+            }
+        }
 
         let mut res = String::new();
         let _ = write!(res, "{} {}\r\n", self.version, self.status);
@@ -226,9 +251,37 @@ impl Response {
             let mut render = BufReader::new(&file);
             if let Ok(data) = render.fill_buf() {
                 if data.len() != 0 {
-                    if let Err(_) = stream.write(data) {
-                        break;
-                    }
+                    match self.encoding {
+                        ContentEncoding::Gzip => {
+                            if let Ok(data) = compress::gzip(data) {
+                                let hex = format!("{:x}", data.len()).as_bytes().to_vec();
+                                let rn = b"\r\n";
+                                let chunk = [hex, rn.to_vec(), data, rn.to_vec()].concat();
+                                if let Err(_) = stream.write(&chunk) {
+                                    break;
+                                }
+                            }else {
+                                break;
+                            }
+                        },
+                        ContentEncoding::Deflate => {
+                            if let Ok(data) = compress::deflate(data) {
+                                let hex = format!("{:x}", data.len()).as_bytes().to_vec();
+                                let rn = b"\r\n";
+                                let chunk = [hex, rn.to_vec(), data, rn.to_vec()].concat();
+                                if let Err(_) = stream.write(&chunk) {
+                                    break;
+                                }
+                            }else {
+                                break;
+                            }
+                        },
+                        _ =>  {
+                            if let Err(_) = stream.write(data) {
+                                break;
+                            }
+                        }
+                    };
                 }else {
                     break;
                 }
@@ -237,28 +290,15 @@ impl Response {
             }
         }
 
+        // Chunk end
+        if self.encoding != ContentEncoding::None {
+            stream.write(b"0\r\n\r\n").unwrap();
+        }
+
         vec![]
 
     }
 
-}
-
-
-fn gzip_min(data: &[u8]) -> Result<Vec<u8>, ()> {
-    let mut encoder = match gzip::Encoder::new(Vec::new()) {
-        Ok(encoder) => encoder,
-        Err(_) => {
-            return Err(());
-        }
-    };
-    if let Err(_) = encoder.write_all(data) {
-        return Err(());
-    }
-    if let Ok(min) = encoder.finish().into_result() {
-        Ok(min)
-    }else {
-        Err(())
-    }
 }
 
 
